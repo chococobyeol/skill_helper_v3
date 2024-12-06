@@ -4,15 +4,45 @@ import win32con
 from threading import Thread
 import keyboard
 import ctypes, sys
-from healing_recovery import HealingController
-from skills.skill_macro_1 import SkillMacro1Controller
-from skills.skill_macro_2 import SkillMacro2Controller
-from skills.skill_macro_3 import SkillMacro3Controller
-from skills.skill_macro_4 import SkillMacro4Controller
-from skills.skill_macro_9 import SkillMacro9Controller
-from overlay_status import StatusOverlay
-from area_selector import show_area_selector
-from actions.quest_action import QuestAction
+
+# 모듈 임포트 시도
+try:
+    from healing_recovery import HealingController
+except ImportError:
+    print("healing_recovery 모듈을 찾을 수 없습니다.")
+    HealingController = None
+
+try:
+    from skills.skill_macro_1 import SkillMacro1Controller
+    from skills.skill_macro_2 import SkillMacro2Controller
+    from skills.skill_macro_3 import SkillMacro3Controller
+    from skills.skill_macro_4 import SkillMacro4Controller
+    from skills.skill_macro_9 import SkillMacro9Controller
+except ImportError:
+    print("skill_macro 모듈을 찾을 수 없습니다.")
+    SkillMacro1Controller = None
+    SkillMacro2Controller = None
+    SkillMacro3Controller = None
+    SkillMacro4Controller = None
+    SkillMacro9Controller = None
+
+try:
+    from overlay_status import StatusOverlay
+except ImportError:
+    print("overlay_status 모듈을 찾을 수 없습니다.")
+    StatusOverlay = None
+
+try:
+    from area_selector import show_area_selector
+except ImportError:
+    print("area_selector 모듈을 찾을 수 없습니다.")
+    show_area_selector = None
+
+try:
+    from actions.quest_action import QuestAction
+except ImportError:
+    print("quest_action 모듈을 찾을 수 없습니다.")
+    QuestAction = None
 
 def is_admin():
     try:
@@ -25,231 +55,124 @@ class MacroController:
         self.is_active = True
         self.EXIT_KEY = 'ctrl+q'
         self.is_using_skill = False
-        self.current_skill = None  # 현재 실행 중인 스킬 표시
+        self.current_skill = None
         
-        # 컨트롤러 초기화
-        self.heal_controller = HealingController()
-        self.heal_controller.macro_controller = self  # 매크로 컨트롤러 참조 추가
+        # 컨트롤러 초기화 - 예외 처리 추가
+        try:
+            self.heal_controller = HealingController()
+            self.heal_controller.macro_controller = self
+            self.heal_controller.is_running = True  # 힐링은 기본적으로 활성화
+        except Exception as e:
+            print(f"힐링 컨트롤러 초기화 실패: {e}")
+            self.heal_controller = None
+
+        # 스킬 매크로 컨트롤러들 초기화
+        self.skill_controllers = {}
         
-        self.skill_macro_1 = SkillMacro1Controller()
-        self.skill_macro_2 = SkillMacro2Controller()
-        self.skill_macro_3 = SkillMacro3Controller()
-        self.skill_macro_4 = SkillMacro4Controller()
-        self.skill_macro_9 = SkillMacro9Controller()
-        self.skill_macro_9.macro_controller = self  # 매크로 컨트롤러 참조 설정
-        
-        # 힐링은 기본적으로 활성화
-        self.heal_controller.is_running = True
-        
+        # 스킬 매크로 동적 로딩
+        skill_numbers = [1, 2, 3, 4, 9]
+        for num in skill_numbers:
+            try:
+                module = __import__(f'skills.skill_macro_{num}', fromlist=[f'SkillMacro{num}Controller'])
+                controller_class = getattr(module, f'SkillMacro{num}Controller')
+                controller = controller_class()
+                if num == 9:  # 스킬9는 매크로 컨트롤러 참조 필요
+                    controller.macro_controller = self
+                self.skill_controllers[num] = controller
+                setattr(self, f'skill_macro_{num}', controller)
+            except Exception as e:
+                print(f"스킬 매크로 {num} 초기화 실패: {e}")
+                self.skill_controllers[num] = None
+                setattr(self, f'skill_macro_{num}', None)
+
+        # 퀘스트 컨트롤러 초기화
+        try:
+            self.quest_action = QuestAction()
+            self.quest_action.macro_controller = self
+        except Exception as e:
+            print(f"퀘스트 액션 초기화 실패: {e}")
+            self.quest_action = None
+
+        # 퀘스트 타입 설정
+        self.quest_types = {
+            'beginner_ghost': False,
+            'ghost': False,
+            'highclass_ghost': True
+        }
+
         # 단축키 설정
         self.setup_hotkeys()
         
-        # 힐링 매크로 토글 단축키 수정 (shift+[ -> alt+[)
-        keyboard.add_hotkey('alt+[', lambda: self.toggle_heal_macro())
+        # 힐링 매크로 토글 단축키
+        if self.heal_controller:
+            keyboard.add_hotkey('alt+[', lambda: self.toggle_heal_macro())
         
-        # 영역 선택 기능 추가
+        # 영역 선택 단축키
         keyboard.add_hotkey('alt+\\', self.show_area_selector)
-
-        # 퀘스트 컨트롤러 초기화 및 설정
-        self.quest_action = QuestAction()
-        self.quest_action.macro_controller = self
         
-        # 퀘스트 타입별 활성화 여부 설정
-        self.quest_types = {
-            'beginner_ghost': False,  # 초급 유령
-            'ghost': False,           # 유령
-            'highclass_ghost': True  # 고급 유령
-        }
-        
-        # 퀘스트 매크로 단축키 수정 (shift+o -> alt+o)
-        keyboard.add_hotkey('alt+o', lambda: self.toggle_quest_action())
+        # 퀘스트 매크로 단축키
+        if self.quest_action:
+            keyboard.add_hotkey('alt+o', lambda: self.toggle_quest_action())
 
     def setup_hotkeys(self):
-        keyboard.on_press_key('F1', lambda _: self.toggle_skill_macro_1())
-        keyboard.on_press_key('F2', lambda _: self.toggle_skill_macro_2())
-        keyboard.on_press_key('F3', lambda _: self.toggle_skill_macro_3())
-        keyboard.on_press_key('F4', lambda _: self.toggle_skill_macro_4())
-        keyboard.on_press_key('F9', lambda _: self.toggle_skill_macro_9())
+        # 스킬 매크로 단축키 설정
+        for num in [1, 2, 3, 4, 9]:
+            if self.skill_controllers.get(num):
+                keyboard.on_press_key(f'F{num}', lambda e, n=num: self.toggle_skill_macro(n))
 
-    def toggle_skill_macro_1(self):
-        self.skill_macro_1.is_running = not self.skill_macro_1.is_running
-        status = "실행 중" if self.skill_macro_1.is_running else "정지"
-        print(f"\n스킬 매크로 1 상태: {status}")
+    def toggle_skill_macro(self, num):
+        """스킬 매크로 토글 통합 함수"""
+        if num in self.skill_controllers and self.skill_controllers[num]:
+            controller = self.skill_controllers[num]
+            controller.is_running = not controller.is_running
+            status = "실행 중" if controller.is_running else "정지"
+            print(f"\n스킬 매크로 {num} 상태: {status}")
 
-    def toggle_skill_macro_2(self):
-        self.skill_macro_2.is_running = not self.skill_macro_2.is_running
-        status = "실행 중" if self.skill_macro_2.is_running else "정지"
-        print(f"\n스킬 매크로 2 상태: {status}")
-
-    def toggle_skill_macro_3(self):
-        self.skill_macro_3.is_running = not self.skill_macro_3.is_running
-        status = "실행 중" if self.skill_macro_3.is_running else "정지"
-        print(f"\n스킬 매크로 3 상태: {status}")
-
-    def toggle_skill_macro_4(self):
-        self.skill_macro_4.is_running = not self.skill_macro_4.is_running
-        status = "실행 중" if self.skill_macro_4.is_running else "정지"
-        print(f"\n스킬 매크로 4 상태: {status}")
-
-    def toggle_skill_macro_9(self):
-        self.skill_macro_9.is_running = not self.skill_macro_9.is_running
-        status = "실행 중" if self.skill_macro_9.is_running else "정지"
-        print(f"\n몹 킬러 매크로 상태: {status}")
-
-    def run_skill_macro_1(self):
+    def run_skill_macro(self, num):
+        """스킬 매크로 실행 통합 함수"""
         while self.is_active:
             try:
+                if not self.skill_controllers.get(num):
+                    time.sleep(1)
+                    continue
+
+                controller = self.skill_controllers[num]
+                
                 # 다른 스킬이 실행 중이면 대기
-                if self.is_using_skill and self.current_skill != "skill1":
+                if self.is_using_skill and self.current_skill != f"skill{num}":
                     time.sleep(0.01)
                     continue
 
                 # 힐/마나 체크
-                if (self.heal_controller.is_healing or 
-                    self.heal_controller.mana_controller.is_recovering):
+                if (self.heal_controller and 
+                    (self.heal_controller.is_healing or 
+                     self.heal_controller.mana_controller.is_recovering)):
                     time.sleep(0.01)
                     continue
 
                 # 스킬 사용
-                if self.skill_macro_1.is_running:
+                if controller.is_running:
                     self.is_using_skill = True
-                    self.current_skill = "skill1"
-                    self.skill_macro_1.use_skill()
+                    self.current_skill = f"skill{num}"
+                    if num == 9:
+                        result = controller.try_once()
+                        if not result:
+                            controller.fail_count += 1
+                            if controller.fail_count >= controller.MAX_FAILS:
+                                print(f"\n{controller.MAX_FAILS}회 실패로 매크로 중지")
+                                controller.is_running = False
+                                controller.fail_count = 0
+                        else:
+                            controller.fail_count = 0
+                    else:
+                        controller.use_skill()
                     self.is_using_skill = False
                     self.current_skill = None
 
                 time.sleep(0.01)
 
             except Exception as e:
-                print(f"매크로 실행 중 오류: {str(e)}")
-                self.is_using_skill = False
-                self.current_skill = None
-
-    def run_skill_macro_2(self):
-        while self.is_active:
-            try:
-                # 다른 스킬이 실행 중이면 대기
-                if self.is_using_skill and self.current_skill != "skill2":
-                    time.sleep(0.01)
-                    continue
-
-                # 힐/마나 체크
-                if (self.heal_controller.is_healing or 
-                    self.heal_controller.mana_controller.is_recovering):
-                    time.sleep(0.01)
-                    continue
-
-                # 스킬 사용
-                if self.skill_macro_2.is_running:
-                    self.is_using_skill = True
-                    self.current_skill = "skill2"
-                    self.skill_macro_2.use_skill()
-                    self.is_using_skill = False
-                    self.current_skill = None
-
-                time.sleep(0.01)
-
-            except Exception as e:
-                print(f"매크로 실행 중 오류: {str(e)}")
-                self.is_using_skill = False
-                self.current_skill = None
-
-    def run_skill_macro_3(self):
-        while self.is_active:
-            try:
-                # 다른 스킬이 실행 중이면 대기
-                if self.is_using_skill and self.current_skill != "skill3":
-                    time.sleep(0.01)
-                    continue
-
-                # 힐/마나 체크
-                if (self.heal_controller.is_healing or 
-                    self.heal_controller.mana_controller.is_recovering):
-                    time.sleep(0.01)
-                    continue
-
-                # 스킬 사용
-                if self.skill_macro_3.is_running:
-                    self.is_using_skill = True
-                    self.current_skill = "skill3"
-                    self.skill_macro_3.use_skill()
-                    self.is_using_skill = False
-                    self.current_skill = None
-
-                time.sleep(0.01)
-
-            except Exception as e:
-                print(f"��크로 실행 중 오류: {str(e)}")
-                self.is_using_skill = False
-                self.current_skill = None
-
-    def run_skill_macro_4(self):
-        while self.is_active:
-            try:
-                # 다른 스킬이 실행 중이면 대기
-                if self.is_using_skill and self.current_skill != "skill4":
-                    time.sleep(0.01)
-                    continue
-
-                # 힐/마나 체크
-                if (self.heal_controller.is_healing or 
-                    self.heal_controller.mana_controller.is_recovering):
-                    time.sleep(0.01)
-                    continue
-
-                # 스킬 사용
-                if self.skill_macro_4.is_running:
-                    self.is_using_skill = True
-                    self.current_skill = "skill4"
-                    self.skill_macro_4.use_skill()
-                    self.is_using_skill = False
-                    self.current_skill = None
-
-                time.sleep(0.01)
-
-            except Exception as e:
-                print(f"매크로 실행 중 오류: {str(e)}")
-                self.is_using_skill = False
-                self.current_skill = None
-
-    def run_skill_macro_9(self):
-        while self.is_active:
-            try:
-                # 스킬 사용
-                if self.skill_macro_9.is_running:
-                    # 힐/마나 체크를 저
-                    if (self.heal_controller.is_healing or 
-                        self.heal_controller.mana_controller.is_recovering):
-                        print("힐/마나 회복 대기...")
-                        time.sleep(0.1)
-                        continue
-
-                    # 다른 스킬이 실행 중이면 대기
-                    if self.is_using_skill and self.current_skill != "skill9":
-                        time.sleep(0.01)
-                        continue
-
-                    self.is_using_skill = True
-                    self.current_skill = "skill9"
-                    
-                    # 한 번의 시도만 실행
-                    result = self.skill_macro_9.try_once()
-                    if not result:  # 실패하면
-                        self.skill_macro_9.fail_count += 1
-                        if self.skill_macro_9.fail_count >= self.skill_macro_9.MAX_FAILS:
-                            print(f"\n{self.skill_macro_9.MAX_FAILS}회 실패로 매크로 중지")
-                            self.skill_macro_9.is_running = False
-                            self.skill_macro_9.fail_count = 0
-                    else:  # 성공하면
-                        self.skill_macro_9.fail_count = 0
-
-                    self.is_using_skill = False
-                    self.current_skill = None
-
-                time.sleep(0.01)
-
-            except Exception as e:
-                print(f"매크로 실행 중 오류: {str(e)}")
+                print(f"매크로 {num} 실행 중 오류: {str(e)}")
                 self.is_using_skill = False
                 self.current_skill = None
 
@@ -264,11 +187,9 @@ class MacroController:
             
             # 마나 컨트롤러와 스킬 매크로들에 스킬 영역 전달
             self.heal_controller.mana_controller.mana_area = skill_area  # 마나는 스킬 영역 사용
-            self.skill_macro_1.skill_area = skill_area
-            self.skill_macro_2.skill_area = skill_area
-            self.skill_macro_3.skill_area = skill_area
-            self.skill_macro_4.skill_area = skill_area
-            self.skill_macro_9.skill_area = skill_area
+            for num in [1, 2, 3, 4, 9]:
+                if self.skill_controllers.get(num):
+                    self.skill_controllers[num].skill_area = skill_area
             
             print("모든 매크로의 감지 영역이 업데이트되었습니다.")
 
@@ -299,16 +220,19 @@ def main():
     # 오버레이 창 생성
     overlay = StatusOverlay(controller)
     
-    # 스레드 시작
-    threads = [
-        Thread(target=controller.heal_controller.check_and_heal),
-        Thread(target=controller.run_skill_macro_1),
-        Thread(target=controller.run_skill_macro_2),
-        Thread(target=controller.run_skill_macro_3),
-        Thread(target=controller.run_skill_macro_4),
-        Thread(target=controller.run_skill_macro_9),
-    ]
+    # 스레드 리스트 생성
+    threads = []
     
+    # 힐링 스레드 추가
+    if controller.heal_controller:
+        threads.append(Thread(target=controller.heal_controller.check_and_heal))
+    
+    # 스킬 매크로 스레드 추가
+    for num in [1, 2, 3, 4, 9]:
+        if controller.skill_controllers.get(num):
+            threads.append(Thread(target=controller.run_skill_macro, args=(num,)))
+    
+    # 스레드 시작
     for thread in threads:
         thread.daemon = True
         thread.start()
