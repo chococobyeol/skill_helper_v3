@@ -61,7 +61,7 @@ class StatusOverlay:
             'skill3': ttk.Label(status_frame, text="F3: 비활성", style='Status.TLabel'),
             'skill4': ttk.Label(status_frame, text="버프(F4): 비활성", style='Status.TLabel'),
             'skill4_party': ttk.Label(status_frame, text="파티버프(F4:a+P): 비활성", style='Status.TLabel'),
-            'skill9': ttk.Label(status_frame, text="자동��(F9): 비활성", style='Status.TLabel'),
+            'skill9': ttk.Label(status_frame, text="자동(F9): 비활성", style='Status.TLabel'),
             'heal': ttk.Label(status_frame, text="체력/마력: 활성", style='Status.TLabel'),
             'quest': ttk.Label(status_frame, text="퀘스트(a+O): 비활성", style='Status.TLabel'),
             'quest_status': ttk.Label(status_frame, text="", style='Status.TLabel', foreground='gray')
@@ -90,7 +90,7 @@ class StatusOverlay:
         # Ctrl+Q 종료 이벤트 바인딩
         self.root.bind('<Control-q>', self.on_exit)
         
-        # 초기화 완료
+        # 초기화 완��
         self.init_done.set()
         
         # 상태 업데이트 시작
@@ -166,10 +166,14 @@ class StatusOverlay:
                             if 'quest_status' in self.labels:
                                 self.labels['quest_status'].config(text="", foreground='gray')
                     else:
-                        macro = getattr(self.macro_controller, f'skill_macro_{key[-1]}')
-                        is_active = macro.is_running
-                        status = "활성" if is_active else "비활성"
-                        label.config(text=f"F{key[-1]}: {status}", foreground='#007ACC' if is_active else 'black')
+                        # skill1~9 매크로 상태 업데이트
+                        skill_number = key[-1]
+                        macro_attr = f'skill_macro_{skill_number}'
+                        if hasattr(self.macro_controller, macro_attr):
+                            macro = getattr(self.macro_controller, macro_attr)
+                            is_active = macro.is_running
+                            status = "활성" if is_active else "비활성"
+                            label.config(text=f"F{skill_number}: {status}", foreground='#007ACC' if is_active else 'black')
                 except Exception as e:
                     with open('overlay_error.log', 'a') as f:
                         f.write(f"Label update error for {key}: {str(e)}\n")
