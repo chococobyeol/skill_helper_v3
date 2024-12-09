@@ -38,23 +38,23 @@ class SkillMacro4Controller:
     def send_shift_key(self, key):
         # Shift 누르기
         win32api.keybd_event(self.SHIFT_KEY, 0, 0, 0)
-        time.sleep(0.01)
+        time.sleep(0.025)
         # 문자 누르기
         win32api.keybd_event(key, 0, 0, 0)
-        time.sleep(0.01)
+        time.sleep(0.025)
         # 문자 떼기
         win32api.keybd_event(key, 0, win32con.KEYEVENTF_KEYUP, 0)
-        time.sleep(0.01)
+        time.sleep(0.025)
         # Shift 떼기
         win32api.keybd_event(self.SHIFT_KEY, 0, win32con.KEYEVENTF_KEYUP, 0)
-        time.sleep(0.01)
+        time.sleep(0.025)
 
     def use_skill(self):
         print("스킬 매크로 4 사용")
         
         # ESC
         self.send_key(self.ESC_KEY)
-        time.sleep(0.01)
+        time.sleep(0.1)
 
         # 키 블록
         keyboard.block_key('up')
@@ -65,54 +65,54 @@ class SkillMacro4Controller:
         
         # Z(쉬프트+z)
         self.send_shift_key(self.Z_KEY)
-        time.sleep(0.025)
-        
+        time.sleep(0.1)
+
         # Q
         self.send_key(self.Q_KEY)
-        time.sleep(0.025)
+        time.sleep(0.1)
         
         # HOME > ENTER
         self.send_key(self.HOME_KEY)
-        time.sleep(0.025)
+        time.sleep(0.1)
         self.send_key(self.ENTER_KEY)
-        time.sleep(0.025)
+        time.sleep(0.1)
         
         # Z
         self.send_shift_key(self.Z_KEY)
-        time.sleep(0.025)
+        time.sleep(0.1)
         
         # W > ENTER
         self.send_key(self.W_KEY)
-        time.sleep(0.025)
+        time.sleep(0.1)
         self.send_key(self.ENTER_KEY)
-        time.sleep(0.025)
+        time.sleep(0.1)
 
         # 파티 스킬 부분 - use_party_skill이 True일 때만 실행
         if self.use_party_skill:
             # TAB > TAB
             self.send_key(self.TAB_KEY)
-            time.sleep(0.025)
+            time.sleep(0.1)
             self.send_key(self.TAB_KEY)
-            time.sleep(0.025)
+            time.sleep(0.1)
             
             # Z
             self.send_shift_key(self.Z_KEY)
-            time.sleep(0.025)
+            time.sleep(0.1)
             
             # Q
             self.send_key(self.Q_KEY)
-            time.sleep(0.025)
+            time.sleep(0.1)
             
             # Z
             self.send_shift_key(self.Z_KEY)
-            time.sleep(0.025)
+            time.sleep(0.1)
             
             # W
             self.send_key(self.W_KEY)
-            time.sleep(0.025)
+            time.sleep(0.1)    
 
         self.send_key(self.ESC_KEY)
-        time.sleep(0.01)
+        time.sleep(0.025)
         # 키 언블록
         keyboard.unblock_key('up')
         keyboard.unblock_key('down')
