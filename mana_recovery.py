@@ -7,6 +7,9 @@ import os
 from threading import Thread
 import numpy as np
 import cv2
+import re
+import torch
+import easyocr
 
 class ManaRecoveryController:
     def __init__(self):
@@ -31,8 +34,33 @@ class ManaRecoveryController:
         
         self.is_using_skill = False  # 스킬 사용 중 플래그 추가
         
-        self.mana_area = None  # 마나 감지 영역 추가
+        self.mana_area = None  # 마나 감지 가
         
+        # OCR 초기화
+        try:
+            if torch.cuda.is_available():
+                device = torch.device('cuda:0')
+                torch.cuda.set_device(device)
+                print(f"GPU 사용: {torch.cuda.get_device_name(0)}")
+                print(f"CUDA 버전: {torch.version.cuda}")
+                
+            self.reader = easyocr.Reader(
+                ['en'],
+                gpu=True,
+                detector=True,
+                recognizer=True,
+                verbose=False,
+                model_storage_directory='./easyocr_models',
+                download_enabled=True,
+                cudnn_benchmark=True
+            )
+            print("EasyOCR GPU 모드로 초기화됨")
+            
+        except Exception as e:
+            print(f"GPU 초기화 실패: {str(e)}")
+            print("CPU 모드로 대체합니다.")
+            self.reader = easyocr.Reader(['en'], gpu=False)
+
         self.check_image_files()
 
     def check_image_files(self):
@@ -61,40 +89,81 @@ class ManaRecoveryController:
         win32api.keybd_event(key, 0, win32con.KEYEVENTF_KEYUP, 0)
         time.sleep(0.02)
 
-    def find_image(self, image_path):
+    def extract_mana_value(self, image):
+        """이미지에서 마나 수치를 추출"""
         try:
-            if self.mana_area is None:  # 영역이 설정되지 않은 경우 기본 영역 사용
-                region = (1150, 678, 450, 182)  # 스킬 영역의 기본값
+            # BGR로 변환
+            image_bgr = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            
+            # HSV 변환
+            hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
+            
+            # 녹색 범위 설정 (체력/마나 텍스트 색상)
+            lower_green = np.array([40, 50, 50])
+            upper_green = np.array([80, 255, 255])
+            
+            # 녹색 마스크 생성
+            green_mask = cv2.inRange(hsv, lower_green, upper_green)
+            
+            # 노이즈 제거 및 텍스트 선명화
+            kernel = np.ones((2,2), np.uint8)
+            processed = cv2.morphologyEx(green_mask, cv2.MORPH_CLOSE, kernel)
+            
+            # OCR 실행 (숫자만 인식)
+            results = self.reader.readtext(processed, allowlist='0123456789')
+            
+            for (bbox, text, prob) in results:
+                numbers = re.findall(r'\d+', text.replace(" ", ""))
+                if numbers:
+                    value = int(numbers[0])
+                    if 0 <= value <= 999999:  # 유효한 마나값 범위
+                        return value
+            
+            # OCR 실패시 템플릿 매칭으로 확인
+            screen_gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+            
+            # 템플릿별 반환값 설정
+            template_values = {
+                1: 0,    # zero_mana1.png -> 0
+                2: 30,   # zero_mana2.png -> 30
+                3: 60,   # zero_mana3.png -> 60
+                4: 90    # zero_mana4.png -> 90
+            }
+            
+            # 템플릿 매칭 확인
+            for i in range(1, 5):
+                template_path = os.path.join(self.img_dir, f'zero_mana{i}.png')
+                if os.path.exists(template_path):
+                    zero_template = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
+                    if zero_template is not None:
+                        result = cv2.matchTemplate(screen_gray, zero_template, cv2.TM_CCOEFF_NORMED)
+                        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
+                        
+                        if max_val >= 0.9:  # 90% 이상 일치하면 해당 값 반환
+                            return template_values[i]
+            
+            return None
+            
+        except Exception as e:
+            return None
+
+    def check_mana(self):
+        """현재 마나 수치 확인"""
+        try:
+            if self.mana_area is None:
+                # 체력바 바로 아래 위치 (체력바와 같은 크기)
+                region = (1285, 933, 314, 33)  # y값을 900 + 33 = 933으로 설정
             else:
                 region = (self.mana_area.x(), self.mana_area.y(), 
                          self.mana_area.width(), self.mana_area.height())
             
-            # pyautogui 대신 OpenCV 직접 사용
             screen = pyautogui.screenshot(region=region)
             screen_np = np.array(screen)
-            screen_bgr = cv2.cvtColor(screen_np, cv2.COLOR_RGB2BGR)
-            screen_gray = cv2.cvtColor(screen_bgr, cv2.COLOR_BGR2GRAY)
             
-            template = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-            if template is None:
-                print(f"템플릿 이미지를 불러올 수 없습니다: {image_path}")
-                return False
+            return self.extract_mana_value(screen_np)
             
-            # 템플릿 매칭 수행
-            result = cv2.matchTemplate(screen_gray, template, cv2.TM_CCOEFF_NORMED)
-            min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
-            
-            # 임계값을 0.9로 조정 (90% 이상 일치)
-            if max_val >= 0.9:
-                location = (max_loc[0], max_loc[1], template.shape[1], template.shape[0])
-                print(f"이미지 발견: {os.path.basename(image_path)} 위치: {location}")
-                return True
-            return False
-            
-        except Exception as e:
-            if not isinstance(e, pyautogui.ImageNotFoundException):
-                print(f"오류 발생: {str(e)}")
-            return False
+        except Exception:
+            return None
 
     def use_mana_potion(self):
         self.is_using_skill = True  # 스킬 사용 시작
@@ -106,46 +175,40 @@ class ManaRecoveryController:
         self.is_using_skill = False  # 스킬 사용 완료
 
     def try_mana_recovery(self):
-        self.is_using_skill = True  # 스킬 사용 시작
+        """마나 회복 스킬 사용"""
+        self.is_using_skill = True
+        print("마나 복 스킬 시도")
         self.send_key(self.MANA_RECOVERY_KEY)
         time.sleep(0.1)
-        success = not self.find_image(self.fail_recovery_path)
-        self.is_using_skill = False  # 스킬 사용 완료
-        return success
+        self.is_using_skill = False
 
     def check_and_recover_mana(self):
         while self.is_active:
             if self.is_running:
                 try:
-                    # 마나 회복 실패 상태와 일반 마나 부족 상태만 먼저 체크
-                    fail_state = self.find_image(self.fail_recovery_path)
-                    lack_mana1 = self.find_image(self.lack_mana1_path)
-
-                    # 마나 회복이 필요한 경우
-                    if fail_state or lack_mana1:
-                        self.is_recovering = True
-                        
-                        # 일반 마나 부족일 때만 심각한 마나 부족 상태 체크
-                        if lack_mana1:
-                            lack_mana2 = self.find_image(self.lack_mana2_path)
-                            if lack_mana2:
-                                print("마나가 너무 부족합니다! 물약 사용")
-                                self.use_mana_potion()
-                                time.sleep(0.02)
-
-                        # 마나 회복 스킬 사용
-                        print("마나 회복 스킬 시도")
-                        self.send_key(self.MANA_RECOVERY_KEY)
-                        time.sleep(0.05)
-                    else:
-                        self.is_recovering = False
+                    current_mana = self.check_mana()
+                    
+                    if current_mana is not None:
+                        if current_mana <= 30:  # 마나가 매우 부족할 때
+                            self.is_recovering = True
+                            print(f"현재 마나: {current_mana}")  # 마나가 매우 부족할 때만 출력
+                            print("마나가 너무 부족합니다! 물약 사용")
+                            self.use_mana_potion()
+                            time.sleep(0.1)
+                        elif current_mana <= 1000:  # 마나가 부족할 때
+                            self.is_recovering = True
+                            print(f"현재 마나: {current_mana}")  # 마나가 부족할 때만 출력
+                            self.try_mana_recovery()
+                            time.sleep(0.1)
+                        else:
+                            self.is_recovering = False
 
                 except Exception as e:
-                    print(f"매크로 실행 중 오류: {str(e)}")
+                    print(f"마나 체크 오류: {str(e)}")
                     self.is_recovering = False
                 
-                time.sleep(0.01)
-            time.sleep(0.01)
+                time.sleep(0.1)
+            time.sleep(0.1)
 
     def toggle_macro(self):
         self.is_running = not self.is_running

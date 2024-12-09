@@ -177,19 +177,16 @@ class MacroController:
                 self.current_skill = None
 
     def show_area_selector(self):
-        skill_area, heal_area, mana_area = show_area_selector()
-        if skill_area and heal_area and mana_area:
+        skill_area, heal_area = show_area_selector()
+        if skill_area and heal_area:
             print(f"스킬/마나 감지 영역: {skill_area}")
             print(f"힐 감지 영역: {heal_area}")
-            print(f"마나 감지 영역: {mana_area}")
             
-            # 힐링 컨트롤러에 영역 전달
+            # 힐링 트롤러에 영역 전달
             self.heal_controller.heal_area = heal_area
             
-            # 마나 컨트롤러에 영역 전달
-            self.heal_controller.mana_controller.mana_area = mana_area
-            
-            # 스킬 매크로들에 스킬 영역 전달
+            # 마나 컨트롤러와 스킬 매크로들에 스킬 영역 전달
+            self.heal_controller.mana_controller.mana_area = skill_area  # 마나는 스킬 영역 사용
             for num in [1, 2, 3, 4, 9]:
                 if self.skill_controllers.get(num):
                     self.skill_controllers[num].skill_area = skill_area

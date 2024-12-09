@@ -32,13 +32,13 @@ class SkillMacro1Controller:  # 클래스 이름도 변경
         keyboard.block_key('right')
         keyboard.block_key('enter')  
         
-        time.sleep(0.01)
+        time.sleep(0.025)
         self.send_key(self.TAB_KEY)  # TAB
-        time.sleep(0.01)
+        time.sleep(0.05)
         self.send_key(self.TAB_KEY)  # TAB
-        time.sleep(0.01)
+        time.sleep(0.025)
         self.send_key(self.SKILL_KEY)  # 6
-        time.sleep(0.01)
+        time.sleep(0.025)
         self.send_key(self.ESC_KEY)  # ESC
                 # 방향키 unblock
         keyboard.unblock_key('up')

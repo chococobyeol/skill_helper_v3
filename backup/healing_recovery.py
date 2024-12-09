@@ -120,10 +120,10 @@ class HealingController:
             
             for (bbox, text, prob) in results:
                 # 숫자만 추출
-                numbers = re.findall(r'\d+', text.replace(" ", ""))
+                numbers = re.findall(r'\d{4}', text.replace(" ", ""))
                 if numbers:
                     value = int(numbers[0])
-                    if 0 <= value <= 9999999:  # 유효한 체력값 범위
+                    if 1000 <= value <= 9999:  # 유효한 체력값 범위
                         return value
             
             return None
