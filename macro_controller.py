@@ -97,7 +97,9 @@ class MacroController:
         self.quest_types = {
             'beginner_ghost': False,
             'ghost': False,
-            'highclass_ghost': True
+            'highclass_ghost': True,
+            'swift_skeleton': True,
+            'skeleton': True  # 해골 퀘스트 추가
         }
 
         # 단축키 설정

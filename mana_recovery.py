@@ -177,9 +177,9 @@ class ManaRecoveryController:
     def try_mana_recovery(self):
         """마나 회복 스킬 사용"""
         self.is_using_skill = True
-        print("마나 복 스킬 시도")
+        print("마나 회복 스킬 시도")
         self.send_key(self.MANA_RECOVERY_KEY)
-        time.sleep(0.1)
+        time.sleep(0.05)
         self.is_using_skill = False
 
     def check_and_recover_mana(self):
@@ -194,12 +194,12 @@ class ManaRecoveryController:
                             print(f"현재 마나: {current_mana}")  # 마나가 매우 부족할 때만 출력
                             print("마나가 너무 부족합니다! 물약 사용")
                             self.use_mana_potion()
-                            time.sleep(0.1)
+                            time.sleep(0.05)
                         elif current_mana <= 1000:  # 마나가 부족할 때
                             self.is_recovering = True
                             print(f"현재 마나: {current_mana}")  # 마나가 부족할 때만 출력
                             self.try_mana_recovery()
-                            time.sleep(0.1)
+                            time.sleep(0.05)
                         else:
                             self.is_recovering = False
 
@@ -207,8 +207,8 @@ class ManaRecoveryController:
                     print(f"마나 체크 오류: {str(e)}")
                     self.is_recovering = False
                 
-                time.sleep(0.1)
-            time.sleep(0.1)
+                time.sleep(0.05)
+            time.sleep(0.05)
 
     def toggle_macro(self):
         self.is_running = not self.is_running

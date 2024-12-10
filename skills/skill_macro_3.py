@@ -55,4 +55,5 @@ class SkillMacro3Controller:
             keyboard.unblock_key('right')
             keyboard.unblock_key('enter')
             
+            # 이동용 딜레이
             time.sleep(0.3)

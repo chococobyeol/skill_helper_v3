@@ -16,7 +16,9 @@ class QuestAction:
         self.quest_image_paths = {
             'beginner_ghost': os.path.join(self.base_path, 'img', 'quest', 'beginner_ghost.png'),
             'ghost': os.path.join(self.base_path, 'img', 'quest', 'ghost.png'),
-            'highclass_ghost': os.path.join(self.base_path, 'img', 'quest', 'highclass_ghost.png')
+            'highclass_ghost': os.path.join(self.base_path, 'img', 'quest', 'highclass_ghost.png'),
+            'swift_skeleton': os.path.join(self.base_path, 'img', 'quest', 'swift_skeleton.png'),
+            'skeleton': os.path.join(self.base_path, 'img', 'quest', 'skeleton.png')
         }
         
         # NPC 이미지 경로들 추가

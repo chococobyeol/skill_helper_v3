@@ -90,7 +90,7 @@ class StatusOverlay:
         # Ctrl+Q 종료 이벤트 바인딩
         self.root.bind('<Control-q>', self.on_exit)
         
-        # 초기화 완��
+        # 초기화 완료
         self.init_done.set()
         
         # 상태 업데이트 시작
@@ -149,6 +149,8 @@ class StatusOverlay:
                                 'beginner_ghost': '초급유령',
                                 'ghost': '유령',
                                 'highclass_ghost': '고급유령',
+                                'swift_skeleton': '날쌘해골',
+                                'skeleton': '해골',
                                 None: '검색중'
                             }.get(quest_type, '검색중')
                             

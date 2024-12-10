@@ -195,7 +195,7 @@ class HealingController:
             self.macro_controller.current_skill = None
 
     def check_and_heal(self):
-        # 마나 회복 스레드 시작 - 이 부분을 다시 추가
+        # 마나 회복 스레드 시작 
         mana_thread = Thread(target=self.mana_controller.check_and_recover_mana)
         mana_thread.daemon = True
         mana_thread.start()
