@@ -156,6 +156,7 @@ class StatusOverlay:
                                 'bachelor_ghost': '몽달귀신',
                                 'broom_ghost': '빗자루귀신',
                                 'egg_ghost': '달걀귀신',
+                                'fire_ghost': '불귀신',
                                 None: '검색중'
                             }.get(quest_type, '검색중')
                             
