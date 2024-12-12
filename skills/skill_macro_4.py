@@ -135,7 +135,7 @@ class SkillMacro4Controller:
                         # TAB > TAB
                         print("[DEBUG] F4: TAB > TAB 키 력")
                         self.send_key(self.TAB_KEY)
-                        time.sleep(0.05)
+                        time.sleep(0.1)
                         self.send_key(self.TAB_KEY)
                         time.sleep(0.05)
                         

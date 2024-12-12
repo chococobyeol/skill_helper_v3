@@ -93,8 +93,13 @@ class MacroController:
             'beginner_ghost': False,
             'ghost': False,
             'highclass_ghost': True,
-            'swift_skeleton': True,
-            'skeleton': True
+            'swift_skeleton': False,
+            'skeleton': False,
+            'insect': True,
+            'virgin_ghost': True,
+            'bachelor_ghost': True,
+            'broom_ghost': False,
+            'egg_ghost': False
         }
 
         self.setup_hotkeys()

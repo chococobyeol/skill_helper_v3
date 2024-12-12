@@ -79,8 +79,8 @@ class HealingController:
             
             lower_green1 = np.array([40, 50, 50])
             upper_green1 = np.array([80, 255, 255])
-            lower_green2 = np.array([82, 40, 160])
-            upper_green2 = np.array([86, 50, 180])
+            lower_green2 = np.array([47, 43, 206])
+            upper_green2 = np.array([49, 53, 216])
 
             mask1 = cv2.inRange(hsv, lower_green1, upper_green1)
             mask2 = cv2.inRange(hsv, lower_green2, upper_green2)

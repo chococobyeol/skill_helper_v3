@@ -151,6 +151,11 @@ class StatusOverlay:
                                 'highclass_ghost': '고급유령',
                                 'swift_skeleton': '날쌘해골',
                                 'skeleton': '해골',
+                                'insect': '독충',
+                                'virgin_ghost': '처녀귀신',
+                                'bachelor_ghost': '몽달귀신',
+                                'broom_ghost': '빗자루귀신',
+                                'egg_ghost': '달걀귀신',
                                 None: '검색중'
                             }.get(quest_type, '검색중')
                             

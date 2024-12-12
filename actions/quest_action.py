@@ -18,7 +18,12 @@ class QuestAction:
             'ghost': os.path.join(self.base_path, 'img', 'quest', 'ghost.png'),
             'highclass_ghost': os.path.join(self.base_path, 'img', 'quest', 'highclass_ghost.png'),
             'swift_skeleton': os.path.join(self.base_path, 'img', 'quest', 'swift_skeleton.png'),
-            'skeleton': os.path.join(self.base_path, 'img', 'quest', 'skeleton.png')
+            'skeleton': os.path.join(self.base_path, 'img', 'quest', 'skeleton.png'),
+            'insect': os.path.join(self.base_path, 'img', 'quest', 'insect.png'),
+            'virgin_ghost': os.path.join(self.base_path, 'img', 'quest', 'virgin_ghost.png'),
+            'bachelor_ghost': os.path.join(self.base_path, 'img', 'quest', 'bachelor_ghost.png'),
+            'broom_ghost': os.path.join(self.base_path, 'img', 'quest', 'broom_ghost.png'),
+            'egg_ghost': os.path.join(self.base_path, 'img', 'quest', 'egg_ghost.png')
         }
         
         # NPC 이미지 경로들 추가

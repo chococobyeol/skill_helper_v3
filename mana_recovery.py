@@ -104,9 +104,9 @@ class ManaRecoveryController:
             lower_green1 = np.array([40, 50, 50])
             upper_green1 = np.array([80, 255, 255])
             
-            # BBD3AB ±2 범위 추가 (HSV로 변환)
-            lower_green2 = np.array([82, 40, 160])  # BBD3AB - 2
-            upper_green2 = np.array([86, 50, 180])  # BBD3AB + 2
+            # 인식 안되는 범위 추가 (HSV로 변환)
+            lower_green2 = np.array([47, 43, 206])    # H=48-1, S=48-5, V=211-5
+            upper_green2 = np.array([49, 53, 216])    # H=48+1, S=48+5, V=211+5
             
             # 두 마스크 생성
             mask1 = cv2.inRange(hsv, lower_green1, upper_green1)
@@ -205,12 +205,12 @@ class ManaRecoveryController:
                             print(f"현재 마나: {current_mana}")  # 마나가 매우 부족할 때만 출력
                             print("마나가 너무 부족합니다! 물약 사용")
                             self.use_mana_potion()
-                            time.sleep(0.05)
+                            time.sleep(0.03)
                         elif current_mana <= 1000:  # 마나가 부족할 때
                             self.is_recovering = True
                             print(f"현재 마나: {current_mana}")  # 마나가 부족할 때만 출력
                             self.try_mana_recovery()
-                            time.sleep(0.05)
+                            time.sleep(0.03)
                         else:
                             self.is_recovering = False
 
@@ -218,8 +218,8 @@ class ManaRecoveryController:
                     print(f"마나 체크 오류: {str(e)}")
                     self.is_recovering = False
                 
-                time.sleep(0.05)
-            time.sleep(0.05)
+                time.sleep(0.03)
+            time.sleep(0.03)
 
     def toggle_macro(self):
         self.is_running = not self.is_running
@@ -234,7 +234,7 @@ def main():
     macro_thread.start()
     
     print("\n=== 마나 회복 컨트롤러 시작 ===")
-    print(f"{controller.TOGGLE_KEY}: 마나 회복 매크로 시작/정지")
+    print(f"{controller.TOGGLE_KEY}: 마나 회복 매크로 ��작/정지")
     print(f"{controller.EXIT_KEY}: 프로그램 종료")
     
     keyboard.add_hotkey(controller.TOGGLE_KEY, controller.toggle_macro)
