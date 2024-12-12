@@ -1,11 +1,11 @@
+# macro_controller.py
 import time
 import win32api
 import win32con
-from threading import Thread
+from threading import Thread, RLock
 import keyboard
 import ctypes, sys
 
-# 모듈 임포트 시도
 try:
     from healing_recovery import HealingController
 except ImportError:
@@ -17,14 +17,12 @@ try:
     from skills.skill_macro_2 import SkillMacro2Controller
     from skills.skill_macro_3 import SkillMacro3Controller
     from skills.skill_macro_4 import SkillMacro4Controller
-    from skills.skill_macro_9 import SkillMacro9Controller
 except ImportError:
     print("skill_macro 모듈을 찾을 수 없습니다.")
     SkillMacro1Controller = None
     SkillMacro2Controller = None
     SkillMacro3Controller = None
     SkillMacro4Controller = None
-    SkillMacro9Controller = None
 
 try:
     from overlay_status import StatusOverlay
@@ -56,28 +54,27 @@ class MacroController:
         self.EXIT_KEY = 'ctrl+q'
         self.is_using_skill = False
         self.current_skill = None
-        
-        # 컨트롤러 초기화 - 예외 처리 추가
+
+        # 글로벌 키 입력 락 추가
+        self.key_input_lock = RLock()
+
         try:
             self.heal_controller = HealingController()
             self.heal_controller.macro_controller = self
-            self.heal_controller.is_running = True  # 힐링은 기본적으로 활성화
+            self.heal_controller.is_running = True
         except Exception as e:
             print(f"힐링 컨트롤러 초기화 실패: {e}")
             self.heal_controller = None
 
-        # 스킬 매크로 컨트롤러들 초기화
         self.skill_controllers = {}
-        
-        # 스킬 매크로 동적 로딩
+        # 스킬 매크로 번호 리스트에 9 추가
         skill_numbers = [1, 2, 3, 4, 9]
         for num in skill_numbers:
             try:
                 module = __import__(f'skills.skill_macro_{num}', fromlist=[f'SkillMacro{num}Controller'])
                 controller_class = getattr(module, f'SkillMacro{num}Controller')
                 controller = controller_class()
-                if num == 9:  # 스킬9는 매크로 컨트롤러 참조 필요
-                    controller.macro_controller = self
+                controller.macro_controller = self
                 self.skill_controllers[num] = controller
                 setattr(self, f'skill_macro_{num}', controller)
             except Exception as e:
@@ -85,7 +82,6 @@ class MacroController:
                 self.skill_controllers[num] = None
                 setattr(self, f'skill_macro_{num}', None)
 
-        # 퀘스트 컨트롤러 초기화
         try:
             self.quest_action = QuestAction()
             self.quest_action.macro_controller = self
@@ -93,45 +89,96 @@ class MacroController:
             print(f"퀘스트 액션 초기화 실패: {e}")
             self.quest_action = None
 
-        # 퀘스트 타입 설정
         self.quest_types = {
             'beginner_ghost': False,
             'ghost': False,
             'highclass_ghost': True,
             'swift_skeleton': True,
-            'skeleton': True  # 해골 퀘스트 추가
+            'skeleton': True
         }
 
-        # 단축키 설정
         self.setup_hotkeys()
         
-        # 힐링 매크로 토글 단축키
         if self.heal_controller:
             keyboard.add_hotkey('alt+[', lambda: self.toggle_heal_macro())
-        
-        # 영역 선택 단축키
+
         keyboard.add_hotkey('alt+\\', self.show_area_selector)
-        
-        # 퀘스트 매크로 단축키
+
         if self.quest_action:
             keyboard.add_hotkey('alt+o', lambda: self.toggle_quest_action())
 
+        # 우선순위 관리를 위한 변수 추가
+        self.priority_queue = []
+        self.previous_macro = None
+        self.f4_in_progress = False
+
     def setup_hotkeys(self):
-        # 스킬 매크로 단축키 설정
+        # F1~F4, F9 키 설정
         for num in [1, 2, 3, 4, 9]:
             if self.skill_controllers.get(num):
                 keyboard.on_press_key(f'F{num}', lambda e, n=num: self.toggle_skill_macro(n))
 
     def toggle_skill_macro(self, num):
-        """스킬 매크로 토글 통합 함수"""
         if num in self.skill_controllers and self.skill_controllers[num]:
             controller = self.skill_controllers[num]
-            controller.is_running = not controller.is_running
+            
+            # F4 매크로가 실행 중일 때는 다른 매크로 토글 무시
+            if num != 4 and self.f4_in_progress:
+                print(f"\nF4 매크로 실행 중 - F{num} 매크로 토글 무시됨")
+                return
+                
+            was_running = controller.is_running
+            
+            # 매크로 켜기
+            if not was_running:
+                # 우선순위에 따라 현재 실행 중인 매크로 중지
+                self.handle_priority(num)
+                controller.is_running = True
+                self.priority_queue.append(num)
+            # 매크로 끄기
+            else:
+                controller.is_running = False
+                if num in self.priority_queue:
+                    self.priority_queue.remove(num)
+                    # ESC 키 전송 (F1, F2, F3, F9 매크로의 경우)
+                    if num in [1, 2, 3, 9]:
+                        with self.key_input_lock:
+                            print("[DEBUG] 스킬 정지 후 ESC 키 전송")
+                            win32api.keybd_event(win32con.VK_ESCAPE, 0, 0, 0)
+                            time.sleep(0.02)
+                            win32api.keybd_event(win32con.VK_ESCAPE, 0, win32con.KEYEVENTF_KEYUP, 0)
+                            time.sleep(0.02)
+                    # 이전 매크로 재시작
+                    self.resume_previous_macro()
+            
             status = "실행 중" if controller.is_running else "정지"
             print(f"\n스킬 매크로 {num} 상태: {status}")
 
+    def handle_priority(self, new_macro_num):
+        # 우선순위 맵 (숫자가 클수록 높은 우선순위)
+        priority_map = {1: 1, 3: 2, 2: 3, 4: 4, 9: 1}  # F9는 F1과 같은 우선순위
+        
+        # 현재 실행 중인 매크로들 확인
+        for num in self.priority_queue[:]:
+            if self.skill_controllers[num].is_running:
+                # 새로운 매크로가 더 높은 우선순위를 가질 경우
+                if priority_map[new_macro_num] > priority_map[num]:
+                    self.skill_controllers[num].is_running = False
+                    if num in [1, 2, 3, 9]:  # F1, F2, F3, F9 매크로의 경우 ESC 키 전송
+                        with self.key_input_lock:
+                            win32api.keybd_event(win32con.VK_ESCAPE, 0, 0, 0)
+                            time.sleep(0.02)
+                            win32api.keybd_event(win32con.VK_ESCAPE, 0, win32con.KEYEVENTF_KEYUP, 0)
+                            time.sleep(0.02)
+
+    def resume_previous_macro(self):
+        # 우선순위 큐에서 가장 마지막 매크로 재시작
+        if self.priority_queue:
+            last_macro = self.priority_queue[-1]
+            if self.skill_controllers[last_macro]:
+                self.skill_controllers[last_macro].is_running = True
+
     def run_skill_macro(self, num):
-        """스킬 매크로 실행 통합 함수"""
         while self.is_active:
             try:
                 if not self.skill_controllers.get(num):
@@ -139,44 +186,38 @@ class MacroController:
                     continue
 
                 controller = self.skill_controllers[num]
-                
-                # 다른 스킬이 실행 중이면 대기
-                if self.is_using_skill and self.current_skill != f"skill{num}":
-                    time.sleep(0.01)
-                    continue
 
-                # 힐/마나 체크
-                if (self.heal_controller and 
-                    (self.heal_controller.is_healing or 
-                     self.heal_controller.mana_controller.is_recovering)):
-                    time.sleep(0.01)
-                    continue
-
-                # 스킬 사용
                 if controller.is_running:
-                    self.is_using_skill = True
-                    self.current_skill = f"skill{num}"
-                    if num == 9:
-                        result = controller.try_once()
-                        if not result:
-                            controller.fail_count += 1
-                            if controller.fail_count >= controller.MAX_FAILS:
-                                print(f"\n{controller.MAX_FAILS}회 실패로 매크로 중지")
-                                controller.is_running = False
-                                controller.fail_count = 0
-                        else:
-                            controller.fail_count = 0
+                    if num == 4:  # F4 매크로 실행 시 특별 처리
+                        self.f4_in_progress = True
+                        # F4 스킬 실행이 완전히 끝날 때까지 다른 매크로 실행 방지
+                        for other_num in self.priority_queue[:]:
+                            if other_num != 4:
+                                self.skill_controllers[other_num].is_running = False
+                        
+                        # F4 스킬 실행 완료될 때까지 대기 (key_input_lock 사용)
+                        with self.key_input_lock:
+                            print("[DEBUG] F4 매크로 실행 시작 (키 입력 잠금)")
+                            controller.use_skill()
+                            print("[DEBUG] F4 매크로 실행 완료 (키 입력 잠금 해제)")
+                        
+                        # F4 매크로 실행 완료 후 정리
+                        self.f4_in_progress = False
+                        controller.is_running = False
+                        if 4 in self.priority_queue:
+                            self.priority_queue.remove(4)
+                        # 이전 매크로들 재시작
+                        self.resume_previous_macro()
                     else:
-                        controller.use_skill()
-                    self.is_using_skill = False
-                    self.current_skill = None
+                        if not self.f4_in_progress:  # F4가 실행 중이 아닐 때만 다른 매크로 실행
+                            controller.use_skill()
 
                 time.sleep(0.01)
 
             except Exception as e:
                 print(f"매크로 {num} 실행 중 오류: {str(e)}")
-                self.is_using_skill = False
-                self.current_skill = None
+                if num == 4:
+                    self.f4_in_progress = False
 
     def show_area_selector(self):
         skill_area, heal_area, mana_area = show_area_selector()
@@ -185,13 +226,9 @@ class MacroController:
             print(f"힐 감지 영역: {heal_area}")
             print(f"마나 감지 영역: {mana_area}")
             
-            # 힐링 컨트롤러에 영역 전달
             self.heal_controller.heal_area = heal_area
-            
-            # 마나 컨트롤러에 영역 전달
             self.heal_controller.mana_controller.mana_area = mana_area
-            
-            # 스킬 매크로들에 스킬 영역 전달
+            # F9 매크로도 포함
             for num in [1, 2, 3, 4, 9]:
                 if self.skill_controllers.get(num):
                     self.skill_controllers[num].skill_area = skill_area
@@ -199,13 +236,11 @@ class MacroController:
             print("모든 매크로의 감지 영역이 업데이트되었습니다.")
 
     def toggle_quest_action(self):
-        if not self.is_using_skill:  # 다른 스킬 사용 중이 아닐 때만 실행
+        if not self.is_using_skill:
             if hasattr(self.quest_action, 'is_running') and self.quest_action.is_running:
-                # 실행 중이면 중지
                 self.quest_action.is_running = False
                 print("\n퀘스트 매크로를 중지합니다...")
             else:
-                # 중지 상태면 시작
                 print("\n퀘스트 수락 매크로 시작...")
                 Thread(target=self.quest_action.execute_quest_action).start()
 
@@ -215,29 +250,21 @@ class MacroController:
         print(f"\n체력/마력 회복 매크로 상태: {status}")
 
 def main():
-    # 관리자 권한 체크 및 요청
     if not is_admin():
         ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)
         return
 
     controller = MacroController()
-    
-    # 오버레이 창 생성
     overlay = StatusOverlay(controller)
-    
-    # 스레드 리스트 생성
+
     threads = []
-    
-    # 힐링 스레드 추가
     if controller.heal_controller:
         threads.append(Thread(target=controller.heal_controller.check_and_heal))
-    
-    # 스킬 매크로 스레드 추가
+    # F9 매크로도 스레드에 추가
     for num in [1, 2, 3, 4, 9]:
         if controller.skill_controllers.get(num):
             threads.append(Thread(target=controller.run_skill_macro, args=(num,)))
-    
-    # 스레드 시작
+
     for thread in threads:
         thread.daemon = True
         thread.start()
@@ -251,7 +278,6 @@ def main():
     print("Alt+P: 파티버프 활성화")
     print("Ctrl+Q: 프로그램 종료")
     
-    # 오버레이 실행
     try:
         overlay.run()
     except KeyboardInterrupt:
@@ -262,4 +288,5 @@ def main():
         overlay.stop()
 
 if __name__ == "__main__":
-    main() 
+    main()
+

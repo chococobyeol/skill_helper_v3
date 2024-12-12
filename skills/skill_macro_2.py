@@ -1,3 +1,4 @@
+# skills/skill_macro_2.py
 import time
 import win32api
 import win32con
@@ -26,9 +27,10 @@ class SkillMacro2Controller:
         
         # 첫 번째 9>위>엔터
         self.send_key(self.ESC_KEY)  # ESC  
-        time.sleep(0.005)
+        time.sleep(0.03)
         self.send_key(self.SKILL_KEY)  # 9
-        time.sleep(0.005)
+        time.sleep(0.03)
         self.send_key(self.UP_KEY)     # 위
-        time.sleep(0.005)
+        time.sleep(0.03)
         self.send_key(self.ENTER_KEY)  # 엔터
+        time.sleep(0.03)

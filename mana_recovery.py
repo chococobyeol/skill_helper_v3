@@ -1,3 +1,4 @@
+# mana_recovery.py
 import time
 import win32api
 import win32con
@@ -29,6 +30,7 @@ class ManaRecoveryController:
         # 키 설정
         self.MANA_RECOVERY_KEY = 0x37  # 7키
         self.MANA_POTION_KEY = 0x55    # U키
+        self.CTRL_KEY = win32con.VK_CONTROL  # Ctrl 키
         self.TOGGLE_KEY = 'F9'
         self.EXIT_KEY = 'ctrl+q'
         
@@ -98,12 +100,20 @@ class ManaRecoveryController:
             # HSV 변환
             hsv = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2HSV)
             
-            # 녹색 범위 설정 (체력/마나 텍스트 색상)
-            lower_green = np.array([40, 50, 50])
-            upper_green = np.array([80, 255, 255])
+            # 기존 녹색 범위
+            lower_green1 = np.array([40, 50, 50])
+            upper_green1 = np.array([80, 255, 255])
             
-            # 녹색 마스크 생성
-            green_mask = cv2.inRange(hsv, lower_green, upper_green)
+            # BBD3AB ±2 범위 추가 (HSV로 변환)
+            lower_green2 = np.array([82, 40, 160])  # BBD3AB - 2
+            upper_green2 = np.array([86, 50, 180])  # BBD3AB + 2
+            
+            # 두 마스크 생성
+            mask1 = cv2.inRange(hsv, lower_green1, upper_green1)
+            mask2 = cv2.inRange(hsv, lower_green2, upper_green2)
+            
+            # 마스크 합치기
+            green_mask = cv2.bitwise_or(mask1, mask2)
             
             # 노이즈 제거 및 텍스트 선명화
             kernel = np.ones((2,2), np.uint8)
@@ -168,10 +178,11 @@ class ManaRecoveryController:
     def use_mana_potion(self):
         self.is_using_skill = True  # 스킬 사용 시작
         print("마나 물약 사용")
+        # U 키만 누르고 떼기
         self.send_key(self.MANA_POTION_KEY)
-        time.sleep(0.05)
+        time.sleep(0.02)
         self.send_key(self.MANA_POTION_KEY)
-        time.sleep(0.05)
+        time.sleep(0.02)
         self.is_using_skill = False  # 스킬 사용 완료
 
     def try_mana_recovery(self):
