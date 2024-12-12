@@ -129,7 +129,7 @@ class HealingController:
         print("힐링 스킬 시도 (우선)")
         # 글로벌 락 획득
         with self.macro_controller.key_input_lock:
-            self.send_key(self.ESC_KEY, 0.03)
+            self.send_key(self.ESC_KEY, 0.025)
             self.send_key(self.HEAL_KEY, 0.02)
             self.send_key(self.HOME_KEY, 0.02)
             self.send_key(self.ENTER_KEY, 0.02)

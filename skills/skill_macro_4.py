@@ -41,14 +41,17 @@ class SkillMacro4Controller:
 
     def send_shift_key(self, key):
         # Shift + 키 입력
-        win32api.keybd_event(self.SHIFT_KEY, 0, 0, 0)
-        time.sleep(self.key_delay)
-        win32api.keybd_event(key, 0, 0, 0)
-        time.sleep(self.key_delay)
-        win32api.keybd_event(key, 0, win32con.KEYEVENTF_KEYUP, 0)
-        time.sleep(self.key_delay)
-        win32api.keybd_event(self.SHIFT_KEY, 0, win32con.KEYEVENTF_KEYUP, 0)
-        time.sleep(self.key_delay)
+        try:
+            win32api.keybd_event(self.SHIFT_KEY, 0, 0, 0)
+            time.sleep(0.05)  # shift 키를 누르고 약간의 대기
+            win32api.keybd_event(key, 0, 0, 0)
+            time.sleep(0.05)
+            win32api.keybd_event(key, 0, win32con.KEYEVENTF_KEYUP, 0)
+            time.sleep(0.05)
+            win32api.keybd_event(self.SHIFT_KEY, 0, win32con.KEYEVENTF_KEYUP, 0)
+            time.sleep(0.05)
+        except Exception as e:
+            print(f"[DEBUG] Shift+{chr(key)} 입력 실패: {e}")
 
     def block_keys(self):
         # 방향키, 엔터키 블록
@@ -74,80 +77,95 @@ class SkillMacro4Controller:
 
     def use_skill(self):
         print("스킬 매크로 4 사용")
+        
         if self.macro_controller:
-            self.macro_controller.is_using_skill = True
-            self.macro_controller.current_skill = "skill4"
+            # 힐링/마나 컨트롤러 상태 저장
+            heal_was_running = False
+            mana_was_running = False
+            if self.macro_controller.heal_controller:
+                heal_was_running = self.macro_controller.heal_controller.is_running
+                mana_was_running = self.macro_controller.heal_controller.mana_controller.is_running
+                # 힐링/마나 회복 일시 중지
+                self.macro_controller.heal_controller.is_running = False
+                self.macro_controller.heal_controller.mana_controller.is_running = False
 
-        # 글로벌 락 획득
-        with self.macro_controller.key_input_lock:
-            # 여기서 힐/마나 회복이 끼어들 수 없으므로 F4 매크로 완전 실행 보장
-            self.block_keys()
-            try:
-                # ESC
-                self.send_key(self.ESC_KEY)
-                time.sleep(0.1)
+            with self.macro_controller.key_input_lock:
+                self.block_keys()
+                try:
+                    # ESC
+                    print("[DEBUG] F4: ESC 키 입력")
+                    self.send_key(self.ESC_KEY)
+                    time.sleep(0.05)
 
-                # Z(Shift+Z)
-                self.send_shift_key(self.Z_KEY)
-                time.sleep(0.1)
-
-                # Q
-                self.send_key(self.Q_KEY)
-                time.sleep(0.1)
-
-                # HOME > ENTER
-                self.send_key(self.HOME_KEY)
-                time.sleep(0.1)
-                self.send_key(self.ENTER_KEY)
-                time.sleep(0.1)
-
-                # Z
-                self.send_shift_key(self.Z_KEY)
-                time.sleep(0.1)
-
-                # W > ENTER
-                self.send_key(self.W_KEY)
-                time.sleep(0.1)
-                self.send_key(self.ENTER_KEY)
-                time.sleep(0.1)
-
-                # ESC
-                self.send_key(self.ESC_KEY)
-                time.sleep(0.025)
-
-                if self.use_party_skill:
-                    # TAB > TAB
-                    self.send_key(self.TAB_KEY)
-                    time.sleep(0.1)
-                    self.send_key(self.TAB_KEY)
-                    time.sleep(0.1)
-                    
-                    # Z
+                    # Z(Shift+Z)
+                    print("[DEBUG] F4: Shift+Z 키 입력")
                     self.send_shift_key(self.Z_KEY)
-                    time.sleep(0.1)
-                    
+                    time.sleep(0.05)
+
                     # Q
+                    print("[DEBUG] F4: Q 키 입력")
                     self.send_key(self.Q_KEY)
-                    time.sleep(0.1)
-                    
+                    time.sleep(0.05)
+
+                    # HOME > ENTER
+                    print("[DEBUG] F4: HOME > ENTER 키 입력")
+                    self.send_key(self.HOME_KEY)
+                    time.sleep(0.05)
+                    self.send_key(self.ENTER_KEY)
+                    time.sleep(0.05)
+
                     # Z
+                    print("[DEBUG] F4: Shift+Z 키 입력 (2)")
                     self.send_shift_key(self.Z_KEY)
-                    time.sleep(0.1)
-                    
-                    # W
+                    time.sleep(0.05)
+
+                    # W > ENTER
+                    print("[DEBUG] F4: W > ENTER 키 입력")
                     self.send_key(self.W_KEY)
-                    time.sleep(0.1)
+                    time.sleep(0.05)
+                    self.send_key(self.ENTER_KEY)
+                    time.sleep(0.05) 
 
-                self.send_key(self.ESC_KEY)
-                time.sleep(0.025)
-            finally:
-                # 키 언블록
-                self.unblock_keys()
+                    # ESC
+                    print("[DEBUG] F4: ESC 키 입력 (2)")
+                    self.send_key(self.ESC_KEY)
+                    time.sleep(0.05)
 
-                # F4 매크로 종료 표시
-                self.is_running = False
-                if self.macro_controller:
-                    self.macro_controller.is_using_skill = False
-                    self.macro_controller.current_skill = None
+                    if self.use_party_skill:
+                        # TAB > TAB
+                        print("[DEBUG] F4: TAB > TAB 키 력")
+                        self.send_key(self.TAB_KEY)
+                        time.sleep(0.05)
+                        self.send_key(self.TAB_KEY)
+                        time.sleep(0.05)
+                        
+                        # Z
+                        print("[DEBUG] F4: Shift+Z 키 입력 (3)")
+                        self.send_shift_key(self.Z_KEY)
+                        time.sleep(0.05)
+                        
+                        # Q
+                        print("[DEBUG] F4: Q 키 입력 (2)")
+                        self.send_key(self.Q_KEY)
+                        time.sleep(0.05)
+                        
+                        # Z
+                        print("[DEBUG] F4: Shift+Z 키 입력 (4)")
+                        self.send_shift_key(self.Z_KEY)
+                        time.sleep(0.05)
+                        
+                        # W
+                        print("[DEBUG] F4: W 키 입력 (2)")
+                        self.send_key(self.W_KEY)
+                        time.sleep(0.05)
+
+                    self.send_key(self.ESC_KEY)
+                    time.sleep(0.05)
+                finally:
+                    self.unblock_keys()
+                    # 힐링/마나 컨트롤러 상태 복원
+                    if self.macro_controller.heal_controller:
+                        self.macro_controller.heal_controller.is_running = heal_was_running
+                        self.macro_controller.heal_controller.mana_controller.is_running = mana_was_running
 
         print("스킬 매크로 4 실행 완료")

@@ -189,25 +189,33 @@ class MacroController:
 
                 if controller.is_running:
                     if num == 4:  # F4 매크로 실행 시 특별 처리
-                        self.f4_in_progress = True
-                        # F4 스킬 실행이 완전히 끝날 때까지 다른 매크로 실행 방지
-                        for other_num in self.priority_queue[:]:
-                            if other_num != 4:
-                                self.skill_controllers[other_num].is_running = False
-                        
-                        # F4 스킬 실행 완료될 때까지 대기 (key_input_lock 사용)
+                        # 전체 F4 매크로 실행을 하나의 락으로 보호
                         with self.key_input_lock:
                             print("[DEBUG] F4 매크로 실행 시작 (키 입력 잠금)")
+                            self.f4_in_progress = True
+                            
+                            # 다른 매크로 중지
+                            for other_num in self.priority_queue[:]:
+                                if other_num != 4:
+                                    self.skill_controllers[other_num].is_running = False
+                                    if other_num in [1, 2, 3, 9]:
+                                        win32api.keybd_event(win32con.VK_ESCAPE, 0, 0, 0)
+                                        time.sleep(0.02)
+                                        win32api.keybd_event(win32con.VK_ESCAPE, 0, win32con.KEYEVENTF_KEYUP, 0)
+                                        time.sleep(0.02)
+                            
+                            # F4 스킬 실행
                             controller.use_skill()
+                            
+                            # F4 매크로 실행 완료 후 정리
+                            self.f4_in_progress = False
+                            controller.is_running = False
+                            if 4 in self.priority_queue:
+                                self.priority_queue.remove(4)
+                            
+                            # 이전 매크로들 재시작
+                            self.resume_previous_macro()
                             print("[DEBUG] F4 매크로 실행 완료 (키 입력 잠금 해제)")
-                        
-                        # F4 매크로 실행 완료 후 정리
-                        self.f4_in_progress = False
-                        controller.is_running = False
-                        if 4 in self.priority_queue:
-                            self.priority_queue.remove(4)
-                        # 이전 매크로들 재시작
-                        self.resume_previous_macro()
                     else:
                         if not self.f4_in_progress:  # F4가 실행 중이 아닐 때만 다른 매크로 실행
                             controller.use_skill()

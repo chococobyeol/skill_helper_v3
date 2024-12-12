@@ -63,7 +63,7 @@ class QuestAction:
     def find_quest_type(self):
         try:
             screen = pyautogui.screenshot()
-            screen.save('debug_screenshot.png')
+            # screen.save('debug_screenshot.png')
             
             print("퀘스트 종류 확인 중...")
             region = (1208, 127, 1550-1208, 604-127)
