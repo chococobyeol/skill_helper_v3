@@ -62,6 +62,7 @@ class MacroController:
             self.heal_controller = HealingController()
             self.heal_controller.macro_controller = self
             self.heal_controller.is_running = True
+            self.heal_controller.mana_controller.is_running = True
         except Exception as e:
             print(f"힐링 컨트롤러 초기화 실패: {e}")
             self.heal_controller = None
@@ -106,7 +107,8 @@ class MacroController:
         self.setup_hotkeys()
         
         if self.heal_controller:
-            keyboard.add_hotkey('alt+[', lambda: self.toggle_heal_macro())
+            keyboard.add_hotkey('`', lambda: self.toggle_heal_macro())
+            keyboard.add_hotkey('alt+[', lambda: self.toggle_mana_macro())
 
         keyboard.add_hotkey('alt+\\', self.show_area_selector)
 
@@ -117,6 +119,8 @@ class MacroController:
         self.priority_queue = []
         self.previous_macro = None
         self.f4_in_progress = False
+
+        self.threads = []  # 스레드 관리를 위한 리스트 추가
 
     def setup_hotkeys(self):
         # F1~F4, F9 키 설정
@@ -259,9 +263,45 @@ class MacroController:
                 Thread(target=self.quest_action.execute_quest_action).start()
 
     def toggle_heal_macro(self):
-        self.heal_controller.is_running = not self.heal_controller.is_running
-        status = "활성" if self.heal_controller.is_running else "비활성"
-        print(f"\n체력/마력 회복 매크로 상태: {status}")
+        """체력 회복 매크로 토글"""
+        if self.heal_controller:
+            self.heal_controller.is_running = not self.heal_controller.is_running
+            status = "활성" if self.heal_controller.is_running else "비활성"
+            print(f"\n체력 회복 매크로 상태: {status}")
+
+    def toggle_mana_macro(self):
+        """마나 회복 매크로 토글"""
+        if self.heal_controller:
+            self.heal_controller.mana_controller.is_running = not self.heal_controller.mana_controller.is_running
+            status = "활성" if self.heal_controller.mana_controller.is_running else "비활성"
+            print(f"\n마나 회복 매크로 상태: {status}")
+
+    def cleanup(self):
+        """프로그램 종료 시 정리 작업 수행"""
+        print("\n프로그램 종료 중...")
+        self.is_active = False
+        
+        # keyboard 핫키 제거
+        keyboard.unhook_all()  # 모든 핫키 제거
+        
+        # 모든 매크로 중지
+        if self.heal_controller:
+            self.heal_controller.is_active = False
+            self.heal_controller.is_running = False
+            self.heal_controller.mana_controller.is_active = False
+            self.heal_controller.mana_controller.is_running = False
+        
+        # 모든 스킬 매크로 중지
+        for num in [1, 2, 3, 4, 9]:
+            if self.skill_controllers.get(num):
+                self.skill_controllers[num].is_running = False
+        
+        # 스레드 종료 대기
+        for thread in self.threads:
+            if thread.is_alive():
+                thread.join(timeout=1.0)
+        
+        print("프로그램이 안전하게 종료되었습니다.")
 
 def main():
     if not is_admin():
@@ -271,17 +311,19 @@ def main():
     controller = MacroController()
     overlay = StatusOverlay(controller)
 
-    threads = []
+    # 스레드 생성 및 저장
     if controller.heal_controller:
-        threads.append(Thread(target=controller.heal_controller.check_and_heal))
-    # F9 매크로도 스레드에 추가
+        heal_thread = Thread(target=controller.heal_controller.check_and_heal)
+        heal_thread.daemon = True
+        controller.threads.append(heal_thread)
+        heal_thread.start()
+
     for num in [1, 2, 3, 4, 9]:
         if controller.skill_controllers.get(num):
-            threads.append(Thread(target=controller.run_skill_macro, args=(num,)))
-
-    for thread in threads:
-        thread.daemon = True
-        thread.start()
+            skill_thread = Thread(target=controller.run_skill_macro, args=(num,))
+            skill_thread.daemon = True
+            controller.threads.append(skill_thread)
+            skill_thread.start()
     
     print("\n=== 매크로 시작 ===")
     print("F8: 힐링 매크로 시작/정지")
@@ -297,9 +339,8 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
-        print("\n프로그램 종료")
-        controller.is_active = False
-        overlay.stop()
+        overlay.stop()  # 오버레이 먼저 종료
+        controller.cleanup()  # 그 다음 컨트롤러 정리
 
 if __name__ == "__main__":
     main()

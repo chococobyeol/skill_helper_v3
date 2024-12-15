@@ -132,7 +132,7 @@ class HealingController:
             self.send_key(self.ESC_KEY, 0.025)
             self.send_key(self.HEAL_KEY, 0.02)
             self.send_key(self.HOME_KEY, 0.02)
-            self.send_key(self.ENTER_KEY, 0.02)
+            self.send_key(self.ENTER_KEY, 0.05)
 
     def check_and_heal(self):
         mana_thread = Thread(target=self.mana_controller.check_and_recover_mana)
@@ -173,8 +173,6 @@ class HealingController:
     @is_running.setter
     def is_running(self, value):
         self._is_running = value
-        if hasattr(self, 'mana_controller'):
-            self.mana_controller.is_running = value
 
     def take_debug_screenshot(self):
         pass

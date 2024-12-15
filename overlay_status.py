@@ -17,6 +17,8 @@ class StatusOverlay:
         # 초기화 완료 이벤트
         self.init_done = threading.Event()
         
+        self.closing = False  # 종료 중인지 확인하는 플래그 추가
+        
     def initialize_gui(self):
         # 메인 윈도우 생성
         self.root = tk.Tk()
@@ -27,8 +29,8 @@ class StatusOverlay:
         self.root.attributes('-alpha', 0.85)
         self.root.overrideredirect(True)
         
-        # 윈도우 크기 증가 (너비를 220으로, 높이를 290으로)
-        self.root.geometry('220x290+10+50')  # 너비를 180에서 220으로 수정
+        # 윈도우 크기를 290에서 310으로 증가
+        self.root.geometry('220x310+10+50')  # 높이를 290에서 310으로 수정
         
         # 메인 프레임 생성
         main_frame = ttk.Frame(self.root, padding="5")
@@ -62,7 +64,8 @@ class StatusOverlay:
             'skill4': ttk.Label(status_frame, text="버프(F4): 비활성", style='Status.TLabel'),
             'skill4_party': ttk.Label(status_frame, text="파티버프(F4:a+P): 비활성", style='Status.TLabel'),
             'skill9': ttk.Label(status_frame, text="자동(F9): 비활성", style='Status.TLabel'),
-            'heal': ttk.Label(status_frame, text="체력/마력: 활성", style='Status.TLabel'),
+            'heal': ttk.Label(status_frame, text="체력(`): 비활성", style='Status.TLabel'),
+            'mana': ttk.Label(status_frame, text="마력(a+[): 비활성", style='Status.TLabel'),
             'quest': ttk.Label(status_frame, text="퀘스트(a+O): 비활성", style='Status.TLabel'),
             'quest_status': ttk.Label(status_frame, text="", style='Status.TLabel', foreground='gray')
         }
@@ -127,10 +130,14 @@ class StatusOverlay:
             # 매크로 상태 업데이트
             for key, label in self.labels.items():
                 try:
-                    if key == 'heal':  # 체력/마력 상태 업데이트 추가
+                    if key == 'heal':  # 체력 상태 업데이트
                         is_active = self.macro_controller.heal_controller.is_running
                         status = "활성" if is_active else "비활성"
-                        label.config(text=f"체력/마력: {status}", foreground='#007ACC' if is_active else 'black')
+                        label.config(text=f"체력(`): {status}", foreground='#007ACC' if is_active else 'black')
+                    elif key == 'mana':  # 마나 상태 업데이트
+                        is_active = self.macro_controller.heal_controller.mana_controller.is_running
+                        status = "활성" if is_active else "비활성"
+                        label.config(text=f"마력(a+[): {status}", foreground='#007ACC' if is_active else 'black')
                     elif key == 'skill4_party':  # 파티버프 상태 업데이트
                         is_active = self.macro_controller.skill_macro_4.use_party_skill
                         status = "활성" if is_active else "비활성"
@@ -198,12 +205,23 @@ class StatusOverlay:
         self.initialize_gui()
 
     def stop(self):
-        self.is_active = False
-        if self.root:
-            self.root.quit()
+        """오버레이 안전하게 종료"""
+        if not self.closing:
+            self.closing = True
+            self.is_active = False
+            if self.root:
+                # 메인 스레드에서 안전하게 종료
+                self.root.quit()
+                self.root.destroy()
 
     def on_exit(self, event=None):
-        self.is_active = False
-        self.macro_controller.is_active = False
-        if self.root:
-            self.root.quit() 
+        """Ctrl+Q 종료 처리"""
+        if not self.closing:
+            self.closing = True
+            self.is_active = False
+            self.macro_controller.is_active = False
+            if self.root:
+                # 메인 스레드에서 안전하게 종료
+                self.root.quit()
+                self.root.destroy()
+  
