@@ -124,7 +124,8 @@ class StatusOverlay:
 
     def update_status(self):
         try:
-            if not self.is_active:
+            # closing 상태이거나 비활성 상태면 업데이트 중지
+            if self.closing or not self.is_active:
                 return
             
             # 매크로 상태 업데이트
@@ -193,8 +194,8 @@ class StatusOverlay:
                     with open('overlay_error.log', 'a') as f:
                         f.write(f"Label update error for {key}: {str(e)}\n")
             
-            # 100ms마다 업데이트
-            if self.is_active:
+            # 윈도우가 아직 존재하고 closing 상태가 아닐 때만 다음 업데이트 예약
+            if self.root and not self.closing:
                 self.root.after(100, self.update_status)
             
         except Exception as e:
@@ -210,9 +211,12 @@ class StatusOverlay:
             self.closing = True
             self.is_active = False
             if self.root:
-                # 메인 스레드에서 안전하게 종료
-                self.root.quit()
-                self.root.destroy()
+                try:
+                    self.root.after_cancel(self.root.after(100, self.update_status))  # 예약된 업데이트 취소
+                    self.root.quit()
+                    self.root.destroy()
+                except:
+                    pass  # 이미 종료된 경우 무시
 
     def on_exit(self, event=None):
         """Ctrl+Q 종료 처리"""
