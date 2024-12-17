@@ -132,32 +132,40 @@ class StatusOverlay:
             # 매크로 상태 업데이트
             for key, label in self.labels.items():
                 try:
-                    if key.startswith('skill'):  # 모든 스킬 매크로 통합 처리
-                        skill_number = key[-1]
-                        macro_attr = f'skill_macro_{skill_number}'
-                        if hasattr(self.macro_controller, macro_attr):
-                            macro = getattr(self.macro_controller, macro_attr)
-                            is_active = macro.is_running
+                    if key.startswith('skill'):  # 스킬 매크로 처리 (일반 스킬과 파티버프 모두)
+                        if key == 'skill4_party':  # 파티버프 상태 업데이트
+                            is_active = (hasattr(self.macro_controller, 'skill_controllers') and 
+                                      4 in self.macro_controller.skill_controllers and 
+                                      self.macro_controller.skill_controllers[4] and 
+                                      self.macro_controller.skill_controllers[4].use_party_skill)
                             status = "활성" if is_active else "비활성"
-                            # 기존 텍스트 유지하면서 상태만 업데이트
-                            current_text = label.cget('text').split(':')[0]
-                            label.config(text=f"{current_text}: {status}", foreground='#007ACC' if is_active else 'black')
+                            label.config(text=f"파티버프(F4:a+P): {status}", 
+                                       foreground='#007ACC' if is_active else 'black')
+                        else:  # 일반 스킬 매크로 처리
+                            skill_number = int(key[-1])
+                            if skill_number in self.macro_controller.skill_controllers:
+                                controller = self.macro_controller.skill_controllers[skill_number]
+                                if controller:
+                                    is_active = controller.is_running
+                                    status = "활성" if is_active else "비활성"
+                                    current_text = label.cget('text').split(':')[0]
+                                    label.config(text=f"{current_text}: {status}", 
+                                               foreground='#007ACC' if is_active else 'black')
                     elif key == 'heal':  # 체력 상태 업데이트
                         is_active = self.macro_controller.heal_controller.is_running
                         status = "활성" if is_active else "비활성"
-                        label.config(text=f"체력(`): {status}", foreground='#007ACC' if is_active else 'black')
+                        label.config(text=f"체력(`): {status}", 
+                                   foreground='#007ACC' if is_active else 'black')
                     elif key == 'mana':  # 마나 상태 업데이트
                         is_active = self.macro_controller.heal_controller.mana_controller.is_running
                         status = "활성" if is_active else "비활성"
-                        label.config(text=f"마력(a+[): {status}", foreground='#007ACC' if is_active else 'black')
-                    elif key == 'skill4_party':  # 파티버프 상태 업데이트
-                        is_active = self.macro_controller.skill_macro_4.use_party_skill
-                        status = "활성" if is_active else "비활성"
-                        label.config(text=f"파티버프(F4:a+P): {status}", foreground='#007ACC' if is_active else 'black')
+                        label.config(text=f"마력(a+[): {status}", 
+                                   foreground='#007ACC' if is_active else 'black')
                     elif key == 'quest':
                         is_active = hasattr(self.macro_controller.quest_action, 'is_running') and self.macro_controller.quest_action.is_running
                         status = "활성" if is_active else "비활성"
-                        label.config(text=f"퀘스트(a+O): {status}", foreground='#007ACC' if is_active else 'black')
+                        label.config(text=f"퀘스트(a+O): {status}", 
+                                   foreground='#007ACC' if is_active else 'black')
                         
                         # 퀘스트 상태 업데이트 (활성 상태가 아니어도 마지막 정보 표시)
                         attempt = getattr(self.macro_controller.quest_action, 'current_attempt', 0)
@@ -193,16 +201,14 @@ class StatusOverlay:
                             if 'quest_status' in self.labels:
                                 self.labels['quest_status'].config(text="", foreground='gray')
                 except Exception as e:
-                    with open('overlay_error.log', 'a') as f:
-                        f.write(f"Label update error for {key}: {str(e)}\n")
-            
+                    print(f"Label update error for {key}: {str(e)}")
+                
             # 다음 업데이트 예약
             if self.root and not self.closing:
-                self.root.after(50, self.update_status)  # 100ms -> 50ms로 변경
+                self.root.after(50, self.update_status)
             
         except Exception as e:
-            with open('overlay_error.log', 'a') as f:
-                f.write(f"Update status error: {str(e)}\n")
+            print(f"Update status error: {str(e)}")
 
     def run(self):
         self.initialize_gui()

@@ -360,6 +360,11 @@ class MacroController:
         
         print("프로그램이 안전하게 종료되었습니다.")
 
+    def update_party_skill_status(self, status):
+        """파티 스킬 상태를 업데이트합니다."""
+        if 4 in self.skill_controllers and self.skill_controllers[4]:
+            self.skill_controllers[4].use_party_skill = status
+
 def main():
     if not is_admin():
         ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, " ".join(sys.argv), None, 1)

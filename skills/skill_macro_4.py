@@ -30,6 +30,9 @@ class SkillMacro4Controller:
         self.use_party_skill = not self.use_party_skill
         status = "활성화" if self.use_party_skill else "비활성화"
         print(f"\nF4 파티 기능 {status}")
+        # 매크로 컨트롤러가 있는 경우 상태 업데이트
+        if hasattr(self, 'macro_controller') and self.macro_controller:
+            self.macro_controller.update_party_skill_status(self.use_party_skill)
 
     def send_key(self, key, delay=None):
         if delay is None:
