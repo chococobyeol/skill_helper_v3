@@ -30,7 +30,7 @@ class StatusOverlay:
         self.root.overrideredirect(True)
         
         # 윈도우 크기를 290에서 310으로 증가
-        self.root.geometry('220x310+10+50')  # 높이를 290에서 310으로 수정
+        self.root.geometry('220x330+10+50')  # 높이를 330으로 수정
         
         # 메인 프레임 생성
         main_frame = ttk.Frame(self.root, padding="5")
@@ -61,13 +61,14 @@ class StatusOverlay:
             'skill1': ttk.Label(status_frame, text="F1: 비활성", style='Status.TLabel'),
             'skill2': ttk.Label(status_frame, text="F2: 비활성", style='Status.TLabel'),
             'skill3': ttk.Label(status_frame, text="F3: 비활성", style='Status.TLabel'),
-            'skill4': ttk.Label(status_frame, text="버프(F4): 비활성", style='Status.TLabel'),
+            'skill4': ttk.Label(status_frame, text="F4: 비활성", style='Status.TLabel'),
             'skill4_party': ttk.Label(status_frame, text="파티버프(F4:a+P): 비활성", style='Status.TLabel'),
+            'skill5': ttk.Label(status_frame, text="a+F1: 비활성", style='Status.TLabel'),
             'skill9': ttk.Label(status_frame, text="자동(F9): 비활성", style='Status.TLabel'),
             'heal': ttk.Label(status_frame, text="체력(`): 비활성", style='Status.TLabel'),
             'mana': ttk.Label(status_frame, text="마력(a+[): 비활성", style='Status.TLabel'),
             'quest': ttk.Label(status_frame, text="퀘스트(a+O): 비활성", style='Status.TLabel'),
-            'quest_status': ttk.Label(status_frame, text="", style='Status.TLabel', foreground='gray')
+            'quest_status': ttk.Label(status_frame, text="", style='Status.TLabel', foreground='gray'),
         }
         
         # 레이블 배치
@@ -131,7 +132,17 @@ class StatusOverlay:
             # 매크로 상태 업데이트
             for key, label in self.labels.items():
                 try:
-                    if key == 'heal':  # 체력 상태 업데이트
+                    if key.startswith('skill'):  # 모든 스킬 매크로 통합 처리
+                        skill_number = key[-1]
+                        macro_attr = f'skill_macro_{skill_number}'
+                        if hasattr(self.macro_controller, macro_attr):
+                            macro = getattr(self.macro_controller, macro_attr)
+                            is_active = macro.is_running
+                            status = "활성" if is_active else "비활성"
+                            # 기존 텍스트 유지하면서 상태만 업데이트
+                            current_text = label.cget('text').split(':')[0]
+                            label.config(text=f"{current_text}: {status}", foreground='#007ACC' if is_active else 'black')
+                    elif key == 'heal':  # 체력 상태 업데이트
                         is_active = self.macro_controller.heal_controller.is_running
                         status = "활성" if is_active else "비활성"
                         label.config(text=f"체력(`): {status}", foreground='#007ACC' if is_active else 'black')
@@ -181,22 +192,13 @@ class StatusOverlay:
                         else:
                             if 'quest_status' in self.labels:
                                 self.labels['quest_status'].config(text="", foreground='gray')
-                    else:
-                        # skill1~9 매크로 상태 업데이트
-                        skill_number = key[-1]
-                        macro_attr = f'skill_macro_{skill_number}'
-                        if hasattr(self.macro_controller, macro_attr):
-                            macro = getattr(self.macro_controller, macro_attr)
-                            is_active = macro.is_running
-                            status = "활성" if is_active else "비활성"
-                            label.config(text=f"F{skill_number}: {status}", foreground='#007ACC' if is_active else 'black')
                 except Exception as e:
                     with open('overlay_error.log', 'a') as f:
                         f.write(f"Label update error for {key}: {str(e)}\n")
             
-            # 윈도우가 아직 존재하고 closing 상태가 아닐 때만 다음 업데이트 예약
+            # 다음 업데이트 예약
             if self.root and not self.closing:
-                self.root.after(100, self.update_status)
+                self.root.after(50, self.update_status)  # 100ms -> 50ms로 변경
             
         except Exception as e:
             with open('overlay_error.log', 'a') as f:

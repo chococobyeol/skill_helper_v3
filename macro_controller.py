@@ -17,12 +17,14 @@ try:
     from skills.skill_macro_2 import SkillMacro2Controller
     from skills.skill_macro_3 import SkillMacro3Controller
     from skills.skill_macro_4 import SkillMacro4Controller
+    from skills.skill_macro_5 import SkillMacro5Controller
 except ImportError:
     print("skill_macro 모듈을 찾을 수 없습니다.")
     SkillMacro1Controller = None
     SkillMacro2Controller = None
     SkillMacro3Controller = None
     SkillMacro4Controller = None
+    SkillMacro5Controller = None
 
 try:
     from overlay_status import StatusOverlay
@@ -68,8 +70,8 @@ class MacroController:
             self.heal_controller = None
 
         self.skill_controllers = {}
-        # 스킬 매크로 번호 리스트에 9 추가
-        skill_numbers = [1, 2, 3, 4, 9]
+        # 스킬 매크로 번호 리스트에 5 추가
+        skill_numbers = [1, 2, 3, 4, 5, 9]
         for num in skill_numbers:
             try:
                 module = __import__(f'skills.skill_macro_{num}', fromlist=[f'SkillMacro{num}Controller'])
@@ -97,7 +99,7 @@ class MacroController:
             'swift_skeleton': False,
             'skeleton': False,
             'insect': False,
-            'virgin_ghost': False,
+            'virgin_ghost': True,
             'bachelor_ghost': False,
             'broom_ghost': False,
             'egg_ghost': False,
@@ -122,11 +124,19 @@ class MacroController:
 
         self.threads = []  # 스레드 관리를 위한 리스트 추가
 
+        # 핫키 재등록을 위한 타이머 추가
+        self.last_hotkey_refresh = time.time()
+        self.HOTKEY_REFRESH_INTERVAL = 300  # 5분마다 핫키 갱신
+
     def setup_hotkeys(self):
         # F1~F4, F9 키 설정
         for num in [1, 2, 3, 4, 9]:
             if self.skill_controllers.get(num):
-                keyboard.on_press_key(f'F{num}', lambda e, n=num: self.toggle_skill_macro(n))
+                keyboard.on_press_key(f'F{num}', 
+                    lambda e, n=num: self.toggle_skill_macro(n) if not keyboard.is_pressed('alt') else (
+                        self.toggle_skill_macro(5) if n == 1 else None
+                    )
+                )
 
     def toggle_skill_macro(self, num):
         if num in self.skill_controllers and self.skill_controllers[num]:
@@ -166,7 +176,14 @@ class MacroController:
 
     def handle_priority(self, new_macro_num):
         # 우선순위 맵 (숫자가 클수록 높은 우선순위)
-        priority_map = {1: 1, 3: 2, 2: 3, 4: 4, 9: 1}  # F9는 F1과 같은 우선순위
+        priority_map = {
+            1: 1,  # F1
+            2: 3,  # F2
+            3: 2,  # F3
+            4: 4,  # F4
+            5: 2,  # 매크로5 (F3와 같은 우선순위)
+            9: 1   # F9
+        }
         
         # 현재 실행 중인 매크로들 확인
         for num in self.priority_queue[:]:
@@ -191,6 +208,14 @@ class MacroController:
     def run_skill_macro(self, num):
         while self.is_active:
             try:
+                # 주기적으로 핫키 갱신
+                current_time = time.time()
+                if current_time - self.last_hotkey_refresh > self.HOTKEY_REFRESH_INTERVAL:
+                    keyboard.unhook_all()
+                    self.setup_hotkeys()
+                    self.last_hotkey_refresh = current_time
+                    print("[DEBUG] 핫키 갱신 완료")
+
                 if not self.skill_controllers.get(num):
                     time.sleep(1)
                     continue
@@ -226,6 +251,35 @@ class MacroController:
                             # 이전 매크로들 재시작
                             self.resume_previous_macro()
                             print("[DEBUG] F4 매크로 실행 완료 (키 입력 잠금 해제)")
+                    elif num == 5:  # alt+f1 매크로 실행 시 특별 처리
+                        with self.key_input_lock:
+                            print("[DEBUG] alt+f1 매크로 실행 시작 (키 입력 잠금)")
+                            self.f4_in_progress = True  # 같은 플래그 사용
+                            
+                            # 다른 매크로 중지
+                            for other_num in self.priority_queue[:]:
+                                self.skill_controllers[other_num].is_running = False
+                                if other_num in [1, 2, 3, 9]:
+                                    win32api.keybd_event(win32con.VK_ESCAPE, 0, 0, 0)
+                                    time.sleep(0.02)
+                                    win32api.keybd_event(win32con.VK_ESCAPE, 0, win32con.KEYEVENTF_KEYUP, 0)
+                                    time.sleep(0.02)
+                            
+                            # alt+f1 스킬 실행 전에 상태 설정
+                            controller.is_running = True
+                            
+                            # alt+f1 스킬 실행
+                            controller.use_skill()
+                            
+                            # 실행 완료 후 정리
+                            self.f4_in_progress = False
+                            controller.is_running = False
+                            if 5 in self.priority_queue:
+                                self.priority_queue.remove(5)
+                            
+                            # 이전 매크로들 재시작
+                            self.resume_previous_macro()
+                            print("[DEBUG] alt+f1 매크로 실행 완료 (키 입력 잠금 해제)")
                     else:
                         if not self.f4_in_progress:  # F4가 실행 중이 아닐 때만 다른 매크로 실행
                             controller.use_skill()
@@ -279,10 +333,13 @@ class MacroController:
     def cleanup(self):
         """프로그램 종료 시 정리 작업 수행"""
         print("\n프로그램 종료 중...")
-        self.is_active = False
         
-        # keyboard 핫키 제거
-        keyboard.unhook_all()  # 모든 핫키 제거
+        # 먼저 활성 상태를 False로 설정하여 모든 이벤트 처리 중지
+        self.is_active = False
+        time.sleep(0.1)  # 진행 중인 이벤트가 완료될 때까지 대기
+        
+        # keyboard 이벤트 리스너 제거
+        keyboard.unhook_all()
         
         # 모든 매크로 중지
         if self.heal_controller:
@@ -292,7 +349,7 @@ class MacroController:
             self.heal_controller.mana_controller.is_running = False
         
         # 모든 스킬 매크로 중지
-        for num in [1, 2, 3, 4, 9]:
+        for num in [1, 2, 3, 4, 5, 9]:
             if self.skill_controllers.get(num):
                 self.skill_controllers[num].is_running = False
         
@@ -318,7 +375,7 @@ def main():
         controller.threads.append(heal_thread)
         heal_thread.start()
 
-    for num in [1, 2, 3, 4, 9]:
+    for num in [1, 2, 3, 4, 5, 9]:
         if controller.skill_controllers.get(num):
             skill_thread = Thread(target=controller.run_skill_macro, args=(num,))
             skill_thread.daemon = True
@@ -339,9 +396,10 @@ def main():
     except KeyboardInterrupt:
         pass
     finally:
+        controller.is_active = False  # 여기서도 먼저 is_active를 False로 설정
+        time.sleep(0.1)
         overlay.stop()  # 오버레이 먼저 종료
         controller.cleanup()  # 그 다음 컨트롤러 정리
 
 if __name__ == "__main__":
     main()
-
