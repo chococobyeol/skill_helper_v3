@@ -35,7 +35,7 @@ except ImportError:
 try:
     from area_selector import show_area_selector
 except ImportError:
-    print("area_selector 모듈을 찾을 수 없습니다.")
+    print("area_selector 모듈을 찾을 �� 없습니다.")
     show_area_selector = None
 
 try:
@@ -142,6 +142,17 @@ class MacroController:
         if num in self.skill_controllers and self.skill_controllers[num]:
             controller = self.skill_controllers[num]
             
+            # alt+f1 (매크로 5) 관련 특별 처리
+            if num == 5:
+                # 이미 실행 중이거나 f4_in_progress가 True인 경우 무시
+                if controller.is_running or self.f4_in_progress:
+                    print(f"\n매크로 {num}가 이미 실행 중입니다. 완료될 때까지 기다려주세요.")
+                    return
+                
+                # alt 키 강제 해제 (stuck 방지)
+                win32api.keybd_event(win32con.VK_MENU, 0, win32con.KEYEVENTF_KEYUP, 0)
+                time.sleep(0.05)
+            
             # F4 매크로가 실행 중일 때는 다른 매크로 토글 무시
             if num != 4 and self.f4_in_progress:
                 print(f"\nF4 매크로 실행 중 - F{num} 매크로 토글 무시됨")
@@ -224,59 +235,62 @@ class MacroController:
 
                 if controller.is_running:
                     if num == 4:  # F4 매크로 실행 시 특별 처리
-                        # 전체 F4 매크로 실행을 하나의 락으로 보호
-                        with self.key_input_lock:
-                            print("[DEBUG] F4 매크로 실행 시작 (키 입력 잠금)")
-                            self.f4_in_progress = True
-                            
-                            # 다른 매크로 중지
-                            for other_num in self.priority_queue[:]:
-                                if other_num != 4:
-                                    self.skill_controllers[other_num].is_running = False
-                                    if other_num in [1, 2, 3, 9]:
-                                        win32api.keybd_event(win32con.VK_ESCAPE, 0, 0, 0)
-                                        time.sleep(0.02)
-                                        win32api.keybd_event(win32con.VK_ESCAPE, 0, win32con.KEYEVENTF_KEYUP, 0)
-                                        time.sleep(0.02)
-                            
-                            # F4 스킬 실행
-                            controller.use_skill()
-                            
-                            # F4 매크로 실행 완료 후 정리
+                        try:
+                            with self.key_input_lock:
+                                print("[DEBUG] F4 매크로 실행 시작 (키 입력 잠금)")
+                                self.f4_in_progress = True
+                                
+                                # 다른 매크로 중지
+                                for other_num in self.priority_queue[:]:
+                                    if other_num != 4:
+                                        self.skill_controllers[other_num].is_running = False
+                                        if other_num in [1, 2, 3, 9]:
+                                            win32api.keybd_event(win32con.VK_ESCAPE, 0, 0, 0)
+                                            time.sleep(0.02)
+                                            win32api.keybd_event(win32con.VK_ESCAPE, 0, win32con.KEYEVENTF_KEYUP, 0)
+                                            time.sleep(0.02)
+                                
+                                # F4 스킬 실행
+                                controller.use_skill()
+                                
+                                # F4 매크로 실행 완료 후 정리
+                                controller.is_running = False  # 실행 완료 후 상태 변경
+                                if 4 in self.priority_queue:
+                                    self.priority_queue.remove(4)
+                                
+                                # 이전 매크로들 재시작
+                                self.resume_previous_macro()
+                                print("[DEBUG] F4 매크로 실행 완료 (키 입력 잠금 해제)")
+                        finally:
                             self.f4_in_progress = False
-                            controller.is_running = False
-                            if 4 in self.priority_queue:
-                                self.priority_queue.remove(4)
-                            
-                            # 이전 매크로들 재시작
-                            self.resume_previous_macro()
                             print("[DEBUG] F4 매크로 실행 완료 (키 입력 잠금 해제)")
                     elif num == 5:  # alt+f1 매크로 실행 시 특별 처리
-                        with self.key_input_lock:
-                            print("[DEBUG] alt+f1 매크로 실행 시작 (키 입력 잠금)")
-                            self.f4_in_progress = True  # 같은 플래그 사용
-                            
-                            # 다른 매크로 중지
-                            for other_num in self.priority_queue[:]:
-                                self.skill_controllers[other_num].is_running = False
-                                if other_num in [1, 2, 3, 9]:
-                                    win32api.keybd_event(win32con.VK_ESCAPE, 0, 0, 0)
-                                    time.sleep(0.02)
-                                    win32api.keybd_event(win32con.VK_ESCAPE, 0, win32con.KEYEVENTF_KEYUP, 0)
-                                    time.sleep(0.02)
-                            
-                            # alt+f1 스킬 실행 전에 상태 설정
-                            controller.is_running = True
-                            
-                            # alt+f1 스킬 실행
-                            controller.use_skill()
-                            
-                            # 실행 완료 후 정리
+                        try:
+                            with self.key_input_lock:
+                                print("[DEBUG] alt+f1 매크로 실행 시작 (키 입력 잠금)")
+                                self.f4_in_progress = True
+                                
+                                # 다른 매크로 중지
+                                for other_num in self.priority_queue[:]:
+                                    if other_num != 5:  # 자기 자신은 제외
+                                        self.skill_controllers[other_num].is_running = False
+                                        if other_num in [1, 2, 3, 9]:
+                                            win32api.keybd_event(win32con.VK_ESCAPE, 0, 0, 0)
+                                            time.sleep(0.02)
+                                            win32api.keybd_event(win32con.VK_ESCAPE, 0, win32con.KEYEVENTF_KEYUP, 0)
+                                            time.sleep(0.02)
+                                
+                                # alt+f1 스킬 실행
+                                controller.use_skill()
+                                
+                                # 실행 완료 후 정리
+                                controller.is_running = False  # 실행 완료 후에 상태 변경
+                                if 5 in self.priority_queue:
+                                    self.priority_queue.remove(5)
+                        except Exception as e:
+                            print(f"[ERROR] alt+f1 매크로 실행 중 오류: {e}")
+                        finally:
                             self.f4_in_progress = False
-                            controller.is_running = False
-                            if 5 in self.priority_queue:
-                                self.priority_queue.remove(5)
-                            
                             # 이전 매크로들 재시작
                             self.resume_previous_macro()
                             print("[DEBUG] alt+f1 매크로 실행 완료 (키 입력 잠금 해제)")
@@ -288,24 +302,55 @@ class MacroController:
 
             except Exception as e:
                 print(f"매크로 {num} 실행 중 오류: {str(e)}")
-                if num == 4:
+                if num in [4, 5]:
                     self.f4_in_progress = False
 
     def show_area_selector(self):
+        # 현재 실행 중인 매크로들의 상태 저장
+        active_macros = {}
+        
+        # 스킬 매크로 상태 저장
+        for num in [1, 2, 3, 4, 5, 9]:
+            if self.skill_controllers.get(num):
+                active_macros[num] = self.skill_controllers[num].is_running
+                self.skill_controllers[num].is_running = False
+        
+        # 힐링/마나 매크로 상태 저장
+        heal_active = False
+        mana_active = False
+        if self.heal_controller:
+            heal_active = self.heal_controller.is_running
+            mana_active = self.heal_controller.mana_controller.is_running
+            self.heal_controller.is_running = False
+            self.heal_controller.mana_controller.is_running = False
+        
+        # 영역 선택 실행
         skill_area, heal_area, mana_area = show_area_selector()
+        
         if skill_area and heal_area and mana_area:
             print(f"스킬/마나 감지 영역: {skill_area}")
             print(f"힐 감지 영역: {heal_area}")
             print(f"마나 감지 영역: {mana_area}")
             
-            self.heal_controller.heal_area = heal_area
-            self.heal_controller.mana_controller.mana_area = mana_area
-            # F9 매크로도 포함
-            for num in [1, 2, 3, 4, 9]:
+            # 영역 업데이트
+            if self.heal_controller:
+                self.heal_controller.heal_area = heal_area
+                self.heal_controller.mana_controller.mana_area = mana_area
+            
+            for num in [1, 2, 3, 4, 5, 9]:
                 if self.skill_controllers.get(num):
                     self.skill_controllers[num].skill_area = skill_area
             
             print("모든 매크로의 감지 영역이 업데이트되었습니다.")
+        
+        # 이전 상태 복원
+        for num, was_active in active_macros.items():
+            if was_active:
+                self.skill_controllers[num].is_running = True
+        
+        if self.heal_controller:
+            self.heal_controller.is_running = heal_active
+            self.heal_controller.mana_controller.is_running = mana_active
 
     def toggle_quest_action(self):
         if not self.is_using_skill:
