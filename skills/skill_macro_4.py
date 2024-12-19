@@ -8,7 +8,7 @@ class SkillMacro4Controller:
     def __init__(self):
         self.is_active = True
         self.is_running = False
-        self.use_party_skill = False  # 파티 스킬 사용 여부
+        self.use_party_skill = False
         
         self.ESC_KEY = win32con.VK_ESCAPE
         self.Z_KEY = ord('Z')
@@ -21,18 +21,13 @@ class SkillMacro4Controller:
         self.SHIFT_KEY = win32con.VK_SHIFT
         self.TOGGLE_KEY = 'F4'
 
-        self.macro_controller = None  # MacroController 할당 필요
-        keyboard.add_hotkey('alt+p', self.toggle_party_skill)
+        self.macro_controller = None
 
         self.key_delay = 0.01  # 키 입력 딜레이 최소화
 
     def toggle_party_skill(self):
-        self.use_party_skill = not self.use_party_skill
-        status = "활성화" if self.use_party_skill else "비활성화"
-        print(f"\nF4 파티 기능 {status}")
-        # 매크로 컨트롤러가 있는 경우 상태 업데이트
-        if hasattr(self, 'macro_controller') and self.macro_controller:
-            self.macro_controller.update_party_skill_status(self.use_party_skill)
+        """이 메서드는 더 이상 사용하지 않음"""
+        pass
 
     def send_key(self, key, delay=None):
         if delay is None:
@@ -70,13 +65,6 @@ class SkillMacro4Controller:
                 keyboard.unblock_key(k)
             except Exception as e:
                 print(f"키 언블록 오류({k}): {e}")
-
-    def is_healing_or_recovering(self):
-        # 힐/마나 회복 상태 확인
-        if self.macro_controller and self.macro_controller.heal_controller:
-            return (self.macro_controller.heal_controller.is_healing or
-                    self.macro_controller.heal_controller.mana_controller.is_recovering)
-        return False
 
     def use_skill(self):
         print("스킬 매크로 4 사용")

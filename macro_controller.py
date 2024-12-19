@@ -35,7 +35,7 @@ except ImportError:
 try:
     from area_selector import show_area_selector
 except ImportError:
-    print("area_selector 모듈을 찾을 �� 없습니다.")
+    print("area_selector 모듈을 찾을 수 없습니다.")
     show_area_selector = None
 
 try:
@@ -108,19 +108,19 @@ class MacroController:
 
         self.setup_hotkeys()
         
-        if self.heal_controller:
-            keyboard.add_hotkey('`', lambda: self.toggle_heal_macro())
-            keyboard.add_hotkey('alt+[', lambda: self.toggle_mana_macro())
-
-        keyboard.add_hotkey('alt+\\', self.show_area_selector)
-
-        if self.quest_action:
-            keyboard.add_hotkey('alt+o', lambda: self.toggle_quest_action())
+        # keyboard.add_hotkey 제거
+        # if self.heal_controller:
+        #     keyboard.add_hotkey('`', lambda: self.toggle_heal_macro())
+        #     keyboard.add_hotkey('alt+[', lambda: self.toggle_mana_macro())
+        # keyboard.add_hotkey('alt+\\', self.show_area_selector)
+        # if self.quest_action:
+        #     keyboard.add_hotkey('alt+o', lambda: self.toggle_quest_action())
 
         # 우선순위 관리를 위한 변수 추가
         self.priority_queue = []
         self.previous_macro = None
         self.f4_in_progress = False
+        self.macro5_executing = False  # 매크로 5 실행 중 상태 체크용
 
         self.threads = []  # 스레드 관리를 위한 리스트 추가
 
@@ -137,21 +137,63 @@ class MacroController:
                         self.toggle_skill_macro(5) if n == 1 else None
                     )
                 )
+        
+        # 다른 키들도 이벤트 핸들러로 처리
+        if self.heal_controller:
+            keyboard.on_press_key('`', 
+                lambda e: self.toggle_heal_macro()
+            )
+            keyboard.on_press_key('[', 
+                lambda e: self.toggle_mana_macro() if keyboard.is_pressed('alt') else None
+            )
+        
+        keyboard.on_press_key('\\', 
+            lambda e: self.show_area_selector() if keyboard.is_pressed('alt') else None
+        )
+        
+        if self.quest_action:
+            keyboard.on_press_key('o', 
+                lambda e: self.toggle_quest_action() if keyboard.is_pressed('alt') else None
+            )
+        
+        # 파티 버프 단축키 수정 - 토글 기능 추가
+        keyboard.on_press_key('p', 
+            lambda e: self.toggle_party_skill() if keyboard.is_pressed('alt') else None
+        )
+
+    def force_release_alt_keys(self):
+        """모든 alt 키 상태를 강제로 해제"""
+        # 일반 alt 키 해제
+        win32api.keybd_event(win32con.VK_MENU, 0, win32con.KEYEVENTF_KEYUP, 0)
+        # 왼쪽 alt 키 해제
+        win32api.keybd_event(win32con.VK_LMENU, 0, win32con.KEYEVENTF_KEYUP, 0)
+        # 오른쪽 alt 키 해제
+        win32api.keybd_event(win32con.VK_RMENU, 0, win32con.KEYEVENTF_KEYUP, 0)
+        time.sleep(0.05)
 
     def toggle_skill_macro(self, num):
         if num in self.skill_controllers and self.skill_controllers[num]:
             controller = self.skill_controllers[num]
             
+            # 매크로 5 실행 중에는 다른 매크로 실행 막기
+            if num != 5 and self.macro5_executing:
+                print(f"\n매크로 5 실행 중 - F{num} 매크로 토글 무시됨")
+                return
+            
             # alt+f1 (매크로 5) 관련 특별 처리
             if num == 5:
-                # 이미 실행 중이거나 f4_in_progress가 True인 경우 무시
-                if controller.is_running or self.f4_in_progress:
-                    print(f"\n매크로 {num}가 이미 실행 중입니다. 완료될 때까지 기다려주세요.")
+                # 실행 중인 경우 무시
+                if self.macro5_executing:
+                    print(f"\n매크로 5가 아직 실행 중입니다. 완료될 때까지 기다려주세요.")
                     return
                 
-                # alt 키 강제 해제 (stuck 방지)
-                win32api.keybd_event(win32con.VK_MENU, 0, win32con.KEYEVENTF_KEYUP, 0)
-                time.sleep(0.05)
+                # alt 키 강제 해제
+                self.force_release_alt_keys()
+                
+                self.macro5_executing = True
+                controller.is_running = True
+                self.priority_queue.append(num)
+                return
             
             # F4 매크로가 실행 중일 때는 다른 매크로 토글 무시
             if num != 4 and self.f4_in_progress:
@@ -266,13 +308,16 @@ class MacroController:
                             print("[DEBUG] F4 매크로 실행 완료 (키 입력 잠금 해제)")
                     elif num == 5:  # alt+f1 매크로 실행 시 특별 처리
                         try:
+                            if not self.macro5_executing:
+                                time.sleep(0.01)  # CPU 사용률 감소를 위한 짧은 대기
+                                continue
+                                
                             with self.key_input_lock:
                                 print("[DEBUG] alt+f1 매크로 실행 시작 (키 입력 잠금)")
-                                self.f4_in_progress = True
                                 
                                 # 다른 매크로 중지
                                 for other_num in self.priority_queue[:]:
-                                    if other_num != 5:  # 자기 자신은 제외
+                                    if other_num != 5:
                                         self.skill_controllers[other_num].is_running = False
                                         if other_num in [1, 2, 3, 9]:
                                             win32api.keybd_event(win32con.VK_ESCAPE, 0, 0, 0)
@@ -284,16 +329,26 @@ class MacroController:
                                 controller.use_skill()
                                 
                                 # 실행 완료 후 정리
-                                controller.is_running = False  # 실행 완료 후에 상태 변경
+                                controller.is_running = False
                                 if 5 in self.priority_queue:
                                     self.priority_queue.remove(5)
+                                
+                                # alt 키 강제 해제
+                                self.force_release_alt_keys()
+                                
+                                # 이전 매크로들 재시작
+                                self.resume_previous_macro()
+                                print("[DEBUG] alt+f1 매크로 실행 완료 (키 입력 잠금 해제)")
+                                
+                                # 실행 완료 표시
+                                self.macro5_executing = False
+                                
                         except Exception as e:
                             print(f"[ERROR] alt+f1 매크로 실행 중 오류: {e}")
-                        finally:
-                            self.f4_in_progress = False
-                            # 이전 매크로들 재시작
-                            self.resume_previous_macro()
-                            print("[DEBUG] alt+f1 매크로 실행 완료 (키 입력 잠금 해제)")
+                            self.macro5_executing = False
+                            self.force_release_alt_keys()
+
+                        time.sleep(0.1)  # 다음 실행까지 약간의 딜레이
                     else:
                         if not self.f4_in_progress:  # F4가 실행 중이 아닐 때만 다른 매크로 실행
                             controller.use_skill()
@@ -375,6 +430,20 @@ class MacroController:
             status = "활성" if self.heal_controller.mana_controller.is_running else "비활성"
             print(f"\n마나 회복 매크로 상태: {status}")
 
+    def toggle_party_skill(self):
+        """파티 스킬 상태를 토글합니다."""
+        if 4 in self.skill_controllers and self.skill_controllers[4]:
+            current_status = self.skill_controllers[4].use_party_skill
+            new_status = not current_status
+            self.update_party_skill_status(new_status)
+
+    def update_party_skill_status(self, status):
+        """파티 스킬 상태를 업데이트합니다."""
+        if 4 in self.skill_controllers and self.skill_controllers[4]:
+            self.skill_controllers[4].use_party_skill = status
+            status_text = "활성화" if status else "비활성화"
+            print(f"\n파티 버프 기능: {status_text}")
+
     def cleanup(self):
         """프로그램 종료 시 정리 작업 수행"""
         print("\n프로그램 종료 중...")
@@ -404,11 +473,6 @@ class MacroController:
                 thread.join(timeout=1.0)
         
         print("프로그램이 안전하게 종료되었습니다.")
-
-    def update_party_skill_status(self, status):
-        """파티 스킬 상태를 업데이트합니다."""
-        if 4 in self.skill_controllers and self.skill_controllers[4]:
-            self.skill_controllers[4].use_party_skill = status
 
 def main():
     if not is_admin():
