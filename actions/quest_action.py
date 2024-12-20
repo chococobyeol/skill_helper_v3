@@ -6,6 +6,7 @@ from PIL import Image
 import os
 import cv2
 import numpy as np
+from random_delay import add_delay
 
 class QuestAction:
     def __init__(self):
@@ -332,3 +333,9 @@ class QuestAction:
         time.sleep(0.5)
         
         return self.find_quest_type()
+
+    def send_key(self, key):
+        win32api.keybd_event(key, 0, 0, 0)
+        time.sleep(add_delay(0.02))
+        win32api.keybd_event(key, 0, win32con.KEYEVENTF_KEYUP, 0)
+        time.sleep(add_delay(0.02))

@@ -3,6 +3,7 @@ import time
 import win32api
 import win32con
 import keyboard
+from random_delay import add_delay
 
 class SkillMacro2Controller:
     def __init__(self):
@@ -39,9 +40,9 @@ class SkillMacro2Controller:
 
     def send_key(self, key):
         win32api.keybd_event(key, 0, 0, 0)
-        time.sleep(0.005)
+        time.sleep(add_delay(0.005))
         win32api.keybd_event(key, 0, win32con.KEYEVENTF_KEYUP, 0)
-        time.sleep(0.005)
+        time.sleep(add_delay(0.005))
 
     def use_skill(self):
         print("스킬 매크로 2 사용")

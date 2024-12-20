@@ -2,6 +2,7 @@ import time
 import win32api
 import win32con
 import keyboard
+from random_delay import add_delay
 
 class SkillMacro5Controller:
     def __init__(self):
@@ -25,9 +26,9 @@ class SkillMacro5Controller:
         if delay is None:
             delay = self.key_delay
         win32api.keybd_event(key, 0, 0, 0)
-        time.sleep(delay)
+        time.sleep(add_delay(delay))
         win32api.keybd_event(key, 0, win32con.KEYEVENTF_KEYUP, 0)
-        time.sleep(delay)
+        time.sleep(add_delay(delay))
 
     def send_shift_key(self, key):
         try:

@@ -11,6 +11,7 @@ import cv2
 import re
 import torch
 import easyocr
+from random_delay import add_delay
 
 class ManaRecoveryController:
     def __init__(self):
@@ -87,9 +88,9 @@ class ManaRecoveryController:
 
     def send_key(self, key):
         win32api.keybd_event(key, 0, 0, 0)
-        time.sleep(0.02)
+        time.sleep(add_delay(0.02))
         win32api.keybd_event(key, 0, win32con.KEYEVENTF_KEYUP, 0)
-        time.sleep(0.02)
+        time.sleep(add_delay(0.02))
 
     def extract_mana_value(self, image):
         """이미지에서 마나 수치를 추출"""
@@ -234,7 +235,7 @@ def main():
     macro_thread.start()
     
     print("\n=== 마나 회복 컨트롤러 시작 ===")
-    print(f"{controller.TOGGLE_KEY}: 마나 회복 매크로 ��작/정지")
+    print(f"{controller.TOGGLE_KEY}: 마나 회복 매크로 작/정지")
     print(f"{controller.EXIT_KEY}: 프로그램 종료")
     
     keyboard.add_hotkey(controller.TOGGLE_KEY, controller.toggle_macro)

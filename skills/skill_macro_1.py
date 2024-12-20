@@ -3,6 +3,7 @@ import time
 import win32api
 import win32con
 import keyboard
+from random_delay import add_delay
 
 class SkillMacro1Controller:
     def __init__(self):
@@ -22,9 +23,9 @@ class SkillMacro1Controller:
         if delay is None:
             delay = self.key_delay
         win32api.keybd_event(key, 0, 0, 0)
-        time.sleep(0.02)
+        time.sleep(add_delay(0.02))
         win32api.keybd_event(key, 0, win32con.KEYEVENTF_KEYUP, 0)
-        time.sleep(delay)
+        time.sleep(add_delay(delay))
 
     def is_healing_or_recovering(self):
         if self.macro_controller and self.macro_controller.heal_controller:

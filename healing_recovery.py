@@ -12,6 +12,7 @@ import cv2
 import easyocr
 import torch
 import re
+from random_delay import add_delay
 
 class HealingController:
     def __init__(self):
@@ -68,9 +69,9 @@ class HealingController:
 
     def send_key(self, key, delay=0.02):
         win32api.keybd_event(key, 0, 0, 0)
-        time.sleep(delay)
+        time.sleep(add_delay(delay))
         win32api.keybd_event(key, 0, win32con.KEYEVENTF_KEYUP, 0)
-        time.sleep(delay)
+        time.sleep(add_delay(delay))
 
     def extract_health_value(self, image):
         try:

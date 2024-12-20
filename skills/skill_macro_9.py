@@ -7,6 +7,7 @@ import os
 import numpy as np
 import cv2
 from threading import Thread
+from random_delay import add_delay
 
 class SkillMacro9Controller:
     def __init__(self):
@@ -23,7 +24,7 @@ class SkillMacro9Controller:
         # 기본 감지 영역 설정 (파란색 영역으로 수정)
         self.skill_area = (1150, 773, 440, 75)  # x, y, width, height
 
-        self.key_delay = 0.1
+        self.key_delay = 0.05
         self.skill_delay = 0.5
 
         # 이미지 파일 경로 설정
@@ -119,9 +120,9 @@ class SkillMacro9Controller:
         if delay is None:
             delay = self.key_delay
         win32api.keybd_event(key, 0, 0, 0)
-        time.sleep(0.02)
+        time.sleep(add_delay(0.02))
         win32api.keybd_event(key, 0, win32con.KEYEVENTF_KEYUP, 0)
-        time.sleep(delay)
+        time.sleep(add_delay(delay))
 
     def is_healing_or_recovering(self):
         if self.macro_controller and self.macro_controller.heal_controller:
@@ -160,7 +161,7 @@ class SkillMacro9Controller:
             if not self.is_healing_or_recovering():
                 self.detected_kill_mob = self.check_kill_mob_image()
                 self.detected_attack = self.check_detect_atk()
-            time.sleep(0.1)  # 이미지 체크 ��격
+            time.sleep(0.1)  # 이미지 체크 간격
 
     def use_skill(self):
         if not self.is_running and not self.was_running:
@@ -232,11 +233,11 @@ class SkillMacro9Controller:
                 # 킬몹 이미지 감지 또는 공격 감지 이미지가 없을 경우 추가 동작
                 if kill_mob_detected or not attack_detected:
                     print("[DEBUG] 추가 키 입력 시작")
-                    time.sleep(0.2)
+                    time.sleep(0.1)
                     self.send_key(self.ESC_KEY)
-                    time.sleep(0.2)
+                    time.sleep(0.1)
                     self.send_key(self.TAB_KEY)
-                    time.sleep(0.2)
+                    time.sleep(0.1)
                     print("[DEBUG] 킬몹 감지 또는 공격 미감지: 윗방향키 > 탭")
                     self.send_key(self.UP_KEY)
                     time.sleep(0.1)
